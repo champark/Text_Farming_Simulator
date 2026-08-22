@@ -34,8 +34,12 @@ DESIRED_WINDOW_HEIGHT = 860
 class CropData:
     name: str
     symbol: str
+
     grow_days: int
     water_interval: int
+
+    seed_price: int
+    sell_price: int
 
 
 CROPS = {
@@ -44,6 +48,8 @@ CROPS = {
         symbol="w",
         grow_days=4,
         water_interval=1,
+        seed_price=10,
+        sell_price=18,
     ),
 
     "carrot": CropData(
@@ -51,6 +57,8 @@ CROPS = {
         symbol="c",
         grow_days=5,
         water_interval=2,
+        seed_price=20,
+        sell_price=40,
     ),
 
     "potato": CropData(
@@ -58,6 +66,8 @@ CROPS = {
         symbol="o",
         grow_days=6,
         water_interval=3,
+        seed_price=30,
+        sell_price=65,
     ),
 }
 
@@ -71,6 +81,7 @@ CROP_KEYS = list(CROPS.keys())
 class Tile:
 
     def __init__(self):
+
         self.plowed = False
 
         self.crop_type: Optional[str] = None
@@ -80,8 +91,13 @@ class Tile:
 
         self.last_watered_day: Optional[int] = None
 
+    # --------------------------------------------------------
+
     def has_crop(self):
+
         return self.crop_type is not None
+
+    # --------------------------------------------------------
 
     def crop_data(self):
 
@@ -89,6 +105,8 @@ class Tile:
             return None
 
         return CROPS[self.crop_type]
+
+    # --------------------------------------------------------
 
     def is_mature(self):
 
@@ -98,6 +116,8 @@ class Tile:
         crop = self.crop_data()
 
         return self.age >= crop.grow_days
+
+    # --------------------------------------------------------
 
     def needs_water(self, current_day):
 
@@ -117,9 +137,13 @@ class Tile:
             >= crop.water_interval
         )
 
+    # --------------------------------------------------------
+
     def watered_today(self, current_day):
 
         return self.last_watered_day == current_day
+
+    # --------------------------------------------------------
 
     def can_grow_today(self, current_day):
 
@@ -152,34 +176,33 @@ class FarmGame:
 
         self.root.title(GAME_TITLE)
 
-        # ----------------------------------------------------
-        # 화면 크기에 맞춰 창 크기 결정
-        # ----------------------------------------------------
+        # ====================================================
+        # 창 크기
+        # ====================================================
 
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
 
+        available_width = max(
+            900,
+            screen_width - 60
+        )
+
+        available_height = max(
+            700,
+            screen_height - 100
+        )
+
         self.window_width = min(
             DESIRED_WINDOW_WIDTH,
-            screen_width - 60
+            available_width
         )
 
         self.window_height = min(
             DESIRED_WINDOW_HEIGHT,
-            screen_height - 100
+            available_height
         )
 
-        self.window_width = max(
-            self.window_width,
-            1050
-        )
-
-        self.window_height = max(
-            self.window_height,
-            760
-        )
-
-        # 화면 중앙 배치
         pos_x = max(
             0,
             (screen_width - self.window_width) // 2
@@ -195,11 +218,9 @@ class FarmGame:
             f"+{pos_x}+{pos_y}"
         )
 
-        self.root.resizable(True, True)
-
-        self.root.minsize(
-            1050,
-            760
+        self.root.resizable(
+            True,
+            True
         )
 
         self.root.configure(
@@ -207,7 +228,7 @@ class FarmGame:
         )
 
         # ====================================================
-        # 게임 상태
+        # 기본 게임 상태
         # ====================================================
 
         self.day = 1
@@ -235,9 +256,6 @@ class FarmGame:
 
         # ====================================================
         # 인벤토리
-        #
-        # seeds   = 씨앗
-        # crops   = 수확한 농산물
         # ====================================================
 
         self.inventory = {
@@ -254,6 +272,21 @@ class FarmGame:
                 "potato": 0,
             },
         }
+
+        # ====================================================
+        # 상점 상태
+        # ====================================================
+
+        self.shop_open = False
+
+        # "buy" 또는 "sell"
+        self.shop_mode = "buy"
+
+        self.shop_selected_index = 0
+
+        self.shop_message = (
+            "구매하거나 판매할 품목을 선택하세요."
+        )
 
         # ====================================================
         # 밭
@@ -315,12 +348,14 @@ class FarmGame:
     def on_resize(self, event):
 
         if event.widget == self.root:
+
             self.window_width = event.width
             self.window_height = event.height
+
             self.draw()
 
     # ========================================================
-    # 입력
+    # 키 입력
     # ========================================================
 
     def on_key(self, event):
@@ -328,32 +363,67 @@ class FarmGame:
         char = event.char.lower()
         key = event.keysym.lower()
 
+        # ====================================================
+        # 상점이 열려 있을 때
+        # ====================================================
+
+        if self.shop_open:
+
+            self.handle_shop_input(
+                char,
+                key
+            )
+
+            self.draw()
+            return
+
+        # ====================================================
+        # 일반 게임 조작
+        # ====================================================
+
         # ----------------------------------------------------
         # 이동
-        # WASD + 방향키
         # ----------------------------------------------------
 
         if char == "w" or key == "up":
-            self.move(0, -1)
+
+            self.move(
+                0,
+                -1
+            )
 
         elif char == "s" or key == "down":
-            self.move(0, 1)
+
+            self.move(
+                0,
+                1
+            )
 
         elif char == "a" or key == "left":
-            self.move(-1, 0)
+
+            self.move(
+                -1,
+                0
+            )
 
         elif char == "d" or key == "right":
-            self.move(1, 0)
+
+            self.move(
+                1,
+                0
+            )
 
         # ----------------------------------------------------
         # 작업 선택
         # ----------------------------------------------------
 
         elif char == "1":
+
             self.selected_action = 0
             self.message = "쟁기질을 선택했다."
 
         elif char == "2":
+
             self.selected_action = 1
 
             crop_key = CROP_KEYS[
@@ -362,20 +432,23 @@ class FarmGame:
 
             crop = CROPS[crop_key]
 
-            seed_count = self.inventory[
-                "seeds"
-            ][crop_key]
+            seed_count = (
+                self.inventory["seeds"][crop_key]
+            )
 
             self.message = (
                 f"씨 뿌리기를 선택했다.\n"
-                f"{crop.name} 씨앗 보유량: {seed_count}"
+                f"{crop.name} 씨앗 보유량: "
+                f"{seed_count}개"
             )
 
         elif char == "3":
+
             self.selected_action = 2
             self.message = "물주기를 선택했다."
 
         elif char == "4":
+
             self.selected_action = 3
             self.message = "수확을 선택했다."
 
@@ -384,9 +457,11 @@ class FarmGame:
         # ----------------------------------------------------
 
         elif char == "q":
+
             self.change_crop(-1)
 
         elif char == "e":
+
             self.change_crop(1)
 
         # ----------------------------------------------------
@@ -398,6 +473,7 @@ class FarmGame:
             or key == "return"
             or key == "space"
         ):
+
             self.interact()
 
         # ----------------------------------------------------
@@ -405,7 +481,16 @@ class FarmGame:
         # ----------------------------------------------------
 
         elif char == "n":
+
             self.next_day()
+
+        # ----------------------------------------------------
+        # 상점
+        # ----------------------------------------------------
+
+        elif char == "b":
+
+            self.open_shop()
 
         # ----------------------------------------------------
         # 종료
@@ -419,10 +504,234 @@ class FarmGame:
         self.draw()
 
     # ========================================================
+    # 상점 입력
+    # ========================================================
+
+    def handle_shop_input(
+        self,
+        char,
+        key
+    ):
+
+        # ----------------------------------------------------
+        # 상점 닫기
+        # ----------------------------------------------------
+
+        if char == "b" or key == "escape":
+
+            self.close_shop()
+            return
+
+        # ----------------------------------------------------
+        # 구매 / 판매 변경
+        # ----------------------------------------------------
+
+        if (
+            char == "a"
+            or key == "left"
+        ):
+
+            self.shop_mode = "buy"
+
+            self.shop_message = (
+                "씨앗 구매 메뉴."
+            )
+
+            return
+
+        if (
+            char == "d"
+            or key == "right"
+        ):
+
+            self.shop_mode = "sell"
+
+            self.shop_message = (
+                "농산물 판매 메뉴."
+            )
+
+            return
+
+        # ----------------------------------------------------
+        # 품목 선택
+        # ----------------------------------------------------
+
+        if (
+            char == "w"
+            or key == "up"
+        ):
+
+            self.shop_selected_index -= 1
+
+            self.shop_selected_index %= len(
+                CROP_KEYS
+            )
+
+            return
+
+        if (
+            char == "s"
+            or key == "down"
+        ):
+
+            self.shop_selected_index += 1
+
+            self.shop_selected_index %= len(
+                CROP_KEYS
+            )
+
+            return
+
+        # ----------------------------------------------------
+        # 거래
+        # ----------------------------------------------------
+
+        if (
+            char == "z"
+            or key == "return"
+            or key == "space"
+        ):
+
+            if self.shop_mode == "buy":
+                self.buy_selected_seed()
+
+            else:
+                self.sell_selected_crop()
+
+    # ========================================================
+    # 상점 열기
+    # ========================================================
+
+    def open_shop(self):
+
+        self.shop_open = True
+
+        self.shop_mode = "buy"
+
+        self.shop_selected_index = 0
+
+        self.shop_message = (
+            "어서 오세요! 무엇을 도와드릴까요?"
+        )
+
+    # ========================================================
+    # 상점 닫기
+    # ========================================================
+
+    def close_shop(self):
+
+        self.shop_open = False
+
+        self.message = (
+            "상점을 나왔다."
+        )
+
+    # ========================================================
+    # 씨앗 구매
+    # ========================================================
+
+    def buy_selected_seed(self):
+
+        crop_key = CROP_KEYS[
+            self.shop_selected_index
+        ]
+
+        crop = CROPS[crop_key]
+
+        price = crop.seed_price
+
+        # ----------------------------------------------------
+        # 돈 부족
+        # ----------------------------------------------------
+
+        if self.money < price:
+
+            self.shop_message = (
+                f"돈이 부족하다!\n"
+                f"{crop.name} 씨앗 가격: {price} G"
+            )
+
+            return
+
+        # ----------------------------------------------------
+        # 구매
+        # ----------------------------------------------------
+
+        self.money -= price
+
+        self.inventory[
+            "seeds"
+        ][crop_key] += 1
+
+        count = self.inventory[
+            "seeds"
+        ][crop_key]
+
+        self.shop_message = (
+            f"{crop.name} 씨앗을 구입했다. "
+            f"-{price} G\n"
+            f"보유 씨앗: {count}개"
+        )
+
+    # ========================================================
+    # 농산물 판매
+    # ========================================================
+
+    def sell_selected_crop(self):
+
+        crop_key = CROP_KEYS[
+            self.shop_selected_index
+        ]
+
+        crop = CROPS[crop_key]
+
+        amount = self.inventory[
+            "crops"
+        ][crop_key]
+
+        # ----------------------------------------------------
+        # 농산물이 없는 경우
+        # ----------------------------------------------------
+
+        if amount <= 0:
+
+            self.shop_message = (
+                f"판매할 {crop.name}이 없다."
+            )
+
+            return
+
+        # ----------------------------------------------------
+        # 판매
+        # ----------------------------------------------------
+
+        price = crop.sell_price
+
+        self.inventory[
+            "crops"
+        ][crop_key] -= 1
+
+        self.money += price
+
+        remaining = self.inventory[
+            "crops"
+        ][crop_key]
+
+        self.shop_message = (
+            f"{crop.name}을 판매했다. "
+            f"+{price} G\n"
+            f"남은 수량: {remaining}개"
+        )
+
+    # ========================================================
     # 이동
     # ========================================================
 
-    def move(self, dx, dy):
+    def move(
+        self,
+        dx,
+        dy
+    ):
 
         new_x = self.player_x + dx
         new_y = self.player_y + dy
@@ -431,6 +740,7 @@ class FarmGame:
             0 <= new_x < GRID_SIZE
             and 0 <= new_y < GRID_SIZE
         ):
+
             self.player_x = new_x
             self.player_y = new_y
 
@@ -438,11 +748,16 @@ class FarmGame:
     # 씨앗 선택
     # ========================================================
 
-    def change_crop(self, direction):
+    def change_crop(
+        self,
+        direction
+    ):
 
         self.selected_crop_index += direction
 
-        self.selected_crop_index %= len(CROP_KEYS)
+        self.selected_crop_index %= len(
+            CROP_KEYS
+        )
 
         crop_key = CROP_KEYS[
             self.selected_crop_index
@@ -450,9 +765,9 @@ class FarmGame:
 
         crop = CROPS[crop_key]
 
-        seed_count = self.inventory[
-            "seeds"
-        ][crop_key]
+        seed_count = (
+            self.inventory["seeds"][crop_key]
+        )
 
         self.message = (
             f"씨앗 선택: {crop.name}\n"
@@ -478,15 +793,19 @@ class FarmGame:
     def interact(self):
 
         if self.selected_action == 0:
+
             self.plow()
 
         elif self.selected_action == 1:
+
             self.plant()
 
         elif self.selected_action == 2:
+
             self.water()
 
         elif self.selected_action == 3:
+
             self.harvest()
 
     # ========================================================
@@ -550,24 +869,25 @@ class FarmGame:
 
         crop = CROPS[crop_key]
 
-        # ----------------------------------------------------
-        # 씨앗 재고 확인
-        # ----------------------------------------------------
+        seed_count = (
+            self.inventory["seeds"][crop_key]
+        )
 
-        seed_count = self.inventory[
-            "seeds"
-        ][crop_key]
+        # ----------------------------------------------------
+        # 씨앗 부족
+        # ----------------------------------------------------
 
         if seed_count <= 0:
 
             self.message = (
-                f"{crop.name} 씨앗이 없다!"
+                f"{crop.name} 씨앗이 없다!\n"
+                f"B키를 눌러 상점에서 구입할 수 있다."
             )
 
             return
 
         # ----------------------------------------------------
-        # 실제 씨앗 소비
+        # 씨앗 소비
         # ----------------------------------------------------
 
         self.inventory[
@@ -583,9 +903,9 @@ class FarmGame:
         tile.age = 0
         tile.last_watered_day = None
 
-        remaining = self.inventory[
-            "seeds"
-        ][crop_key]
+        remaining = (
+            self.inventory["seeds"][crop_key]
+        )
 
         self.message = (
             f"{crop.name} 씨앗을 심었다.\n"
@@ -671,7 +991,8 @@ class FarmGame:
 
             self.message = (
                 f"{crop.name}은 아직 자라고 있다.\n"
-                f"성장 단계: {tile.age}/{crop.grow_days}"
+                f"성장 단계: "
+                f"{tile.age}/{crop.grow_days}"
             )
 
             return
@@ -679,7 +1000,7 @@ class FarmGame:
         crop_key = tile.crop_type
 
         # ----------------------------------------------------
-        # 농산물 인벤토리에 추가
+        # 농산물 추가
         # ----------------------------------------------------
 
         harvest_amount = 1
@@ -688,9 +1009,9 @@ class FarmGame:
             "crops"
         ][crop_key] += harvest_amount
 
-        total_amount = self.inventory[
-            "crops"
-        ][crop_key]
+        total_amount = (
+            self.inventory["crops"][crop_key]
+        )
 
         # ----------------------------------------------------
         # 밭 초기화
@@ -701,7 +1022,7 @@ class FarmGame:
         tile.last_watered_day = None
         tile.planted_day = 0
 
-        # 수확 후에는 갈아놓은 상태 유지
+        # 수확 후 갈아놓은 상태 유지
         tile.plowed = True
 
         self.message = (
@@ -720,7 +1041,9 @@ class FarmGame:
 
             for tile in row:
 
-                if tile.can_grow_today(self.day):
+                if tile.can_grow_today(
+                    self.day
+                ):
 
                     tile.age += 1
 
@@ -736,7 +1059,7 @@ class FarmGame:
         )
 
     # ========================================================
-    # 화면 출력
+    # 전체 화면 그리기
     # ========================================================
 
     def draw(self):
@@ -748,6 +1071,9 @@ class FarmGame:
 
         self.draw_field()
         self.draw_panel()
+
+        if self.shop_open:
+            self.draw_shop()
 
     # ========================================================
     # 밭 출력
@@ -764,8 +1090,15 @@ class FarmGame:
 
                 tile = self.field[y][x]
 
-                px = offset_x + x * CELL_SIZE
-                py = offset_y + y * CELL_SIZE
+                px = (
+                    offset_x
+                    + x * CELL_SIZE
+                )
+
+                py = (
+                    offset_y
+                    + y * CELL_SIZE
+                )
 
                 # ------------------------------------------------
                 # 배경
@@ -783,7 +1116,7 @@ class FarmGame:
                     bg = "#355667"
 
                 # ------------------------------------------------
-                # 칸
+                # 타일
                 # ------------------------------------------------
 
                 self.canvas.create_rectangle(
@@ -814,10 +1147,12 @@ class FarmGame:
                     if tile.is_mature():
                         symbol = symbol.upper()
 
+                # 플레이어 우선 표시
                 if (
                     x == self.player_x
                     and y == self.player_y
                 ):
+
                     symbol = "P"
 
                 self.canvas.create_text(
@@ -844,9 +1179,11 @@ class FarmGame:
             + 40
         )
 
-        panel_right = self.window_width - 25
+        panel_right = (
+            self.window_width - 25
+        )
 
-        y = 22
+        y = 20
 
         # ----------------------------------------------------
         # 제목
@@ -860,15 +1197,15 @@ class FarmGame:
             fill="#ffffff",
             font=(
                 "Malgun Gothic",
-                22,
+                21,
                 "bold",
             ),
         )
 
-        y += 50
+        y += 48
 
         # ----------------------------------------------------
-        # 날짜 + 돈
+        # 날짜 / 돈
         # ----------------------------------------------------
 
         self.canvas.create_text(
@@ -876,8 +1213,8 @@ class FarmGame:
             y,
             anchor="nw",
             text=(
-                f"{self.day}일째\n"
-                f"보유금: {self.money:,} G"
+                f"{self.day}일째     "
+                f"{self.money:,} G"
             ),
             fill="#f1d58a",
             font=(
@@ -887,10 +1224,10 @@ class FarmGame:
             ),
         )
 
-        y += 72
+        y += 43
 
         # ----------------------------------------------------
-        # 현재 작업 / 선택 씨앗
+        # 현재 작업
         # ----------------------------------------------------
 
         action = self.actions[
@@ -903,17 +1240,17 @@ class FarmGame:
 
         crop = CROPS[crop_key]
 
-        seed_count = self.inventory[
-            "seeds"
-        ][crop_key]
+        seed_count = (
+            self.inventory["seeds"][crop_key]
+        )
 
         info = (
             f"[현재 작업]\n"
             f"{self.selected_action + 1}. {action}\n\n"
             f"[선택 씨앗]\n"
             f"{crop.name} × {seed_count}\n"
-            f"성장: {crop.grow_days}일 / "
-            f"물: {crop.water_interval}일마다"
+            f"성장 {crop.grow_days}일 / "
+            f"물 {crop.water_interval}일마다"
         )
 
         self.canvas.create_text(
@@ -924,11 +1261,11 @@ class FarmGame:
             fill="#dddddd",
             font=(
                 "Malgun Gothic",
-                13,
+                12,
             ),
         )
 
-        y += 145
+        y += 135
 
         # ----------------------------------------------------
         # 인벤토리
@@ -936,15 +1273,17 @@ class FarmGame:
 
         inventory_text = (
             "[인벤토리]\n"
-            "씨앗\n"
-            f"  밀     × {self.inventory['seeds']['wheat']}\n"
-            f"  당근   × {self.inventory['seeds']['carrot']}\n"
-            f"  감자   × {self.inventory['seeds']['potato']}\n"
             "\n"
-            "농산물\n"
-            f"  밀     × {self.inventory['crops']['wheat']}\n"
-            f"  당근   × {self.inventory['crops']['carrot']}\n"
-            f"  감자   × {self.inventory['crops']['potato']}"
+            "씨앗                       농산물\n"
+            f"밀    {self.inventory['seeds']['wheat']:>3}"
+            f"             "
+            f"밀    {self.inventory['crops']['wheat']:>3}\n"
+            f"당근  {self.inventory['seeds']['carrot']:>3}"
+            f"             "
+            f"당근  {self.inventory['crops']['carrot']:>3}\n"
+            f"감자  {self.inventory['seeds']['potato']:>3}"
+            f"             "
+            f"감자  {self.inventory['crops']['potato']:>3}"
         )
 
         self.canvas.create_text(
@@ -955,11 +1294,11 @@ class FarmGame:
             fill="#d8e6c3",
             font=(
                 "Malgun Gothic",
-                12,
+                11,
             ),
         )
 
-        y += 190
+        y += 115
 
         # ----------------------------------------------------
         # 현재 칸
@@ -977,11 +1316,11 @@ class FarmGame:
             fill="#a9d6ff",
             font=(
                 "Malgun Gothic",
-                12,
+                11,
             ),
         )
 
-        y += 105
+        y += 95
 
         # ----------------------------------------------------
         # 메시지
@@ -989,9 +1328,9 @@ class FarmGame:
 
         self.canvas.create_rectangle(
             panel_x - 8,
-            y - 8,
+            y - 7,
             panel_right,
-            y + 70,
+            y + 64,
             fill="#252525",
             outline="#666666",
             width=2,
@@ -999,7 +1338,7 @@ class FarmGame:
 
         self.canvas.create_text(
             panel_x + 5,
-            y + 5,
+            y + 4,
             anchor="nw",
             text=self.message,
             width=max(
@@ -1009,11 +1348,11 @@ class FarmGame:
             fill="#ffffff",
             font=(
                 "Malgun Gothic",
-                11,
+                10,
             ),
         )
 
-        y += 90
+        y += 82
 
         # ----------------------------------------------------
         # 조작법
@@ -1021,13 +1360,12 @@ class FarmGame:
 
         controls = (
             "[조작]\n"
-            "WASD / 방향키      이동\n"
-            "1                  쟁기질\n"
-            "2                  씨 뿌리기\n"
-            "3                  물주기\n"
-            "4                  수확\n"
+            "WASD / 방향키     이동\n"
+            "1 쟁기질    2 씨 뿌리기\n"
+            "3 물주기    4 수확\n"
             "Q / E              씨앗 선택\n"
             "Z / SPACE / ENTER  실행\n"
+            "B                  상점\n"
             "N                  다음 날\n"
             "ESC                종료"
         )
@@ -1045,22 +1383,298 @@ class FarmGame:
         )
 
     # ========================================================
+    # 상점 화면
+    # ========================================================
+
+    def draw_shop(self):
+
+        # ----------------------------------------------------
+        # 화면 크기에 맞는 상점창
+        # ----------------------------------------------------
+
+        shop_width = min(
+            700,
+            self.window_width - 100
+        )
+
+        shop_height = min(
+            600,
+            self.window_height - 100
+        )
+
+        left = (
+            self.window_width
+            - shop_width
+        ) // 2
+
+        top = (
+            self.window_height
+            - shop_height
+        ) // 2
+
+        right = left + shop_width
+        bottom = top + shop_height
+
+        # ----------------------------------------------------
+        # 검은 오버레이
+        # ----------------------------------------------------
+
+        self.canvas.create_rectangle(
+            0,
+            0,
+            self.window_width,
+            self.window_height,
+            fill="#080808",
+            stipple="gray50",
+            outline="",
+        )
+
+        # ----------------------------------------------------
+        # 상점 본체
+        # ----------------------------------------------------
+
+        self.canvas.create_rectangle(
+            left,
+            top,
+            right,
+            bottom,
+            fill="#202020",
+            outline="#d8c48c",
+            width=3,
+        )
+
+        center_x = (
+            left + right
+        ) // 2
+
+        y = top + 25
+
+        # ----------------------------------------------------
+        # 제목
+        # ----------------------------------------------------
+
+        self.canvas.create_text(
+            center_x,
+            y,
+            text="상점",
+            fill="#ffffff",
+            font=(
+                "Malgun Gothic",
+                26,
+                "bold",
+            ),
+        )
+
+        y += 50
+
+        # ----------------------------------------------------
+        # 돈
+        # ----------------------------------------------------
+
+        self.canvas.create_text(
+            center_x,
+            y,
+            text=f"보유금  {self.money:,} G",
+            fill="#f1d58a",
+            font=(
+                "Malgun Gothic",
+                16,
+                "bold",
+            ),
+        )
+
+        y += 45
+
+        # ----------------------------------------------------
+        # 구매 / 판매 탭
+        # ----------------------------------------------------
+
+        buy_text = "  [ 구매 ]  "
+
+        sell_text = "  [ 판매 ]  "
+
+        buy_color = (
+            "#ffffff"
+            if self.shop_mode == "buy"
+            else "#777777"
+        )
+
+        sell_color = (
+            "#ffffff"
+            if self.shop_mode == "sell"
+            else "#777777"
+        )
+
+        self.canvas.create_text(
+            center_x - 120,
+            y,
+            text=buy_text,
+            fill=buy_color,
+            font=(
+                "Malgun Gothic",
+                15,
+                "bold",
+            ),
+        )
+
+        self.canvas.create_text(
+            center_x + 120,
+            y,
+            text=sell_text,
+            fill=sell_color,
+            font=(
+                "Malgun Gothic",
+                15,
+                "bold",
+            ),
+        )
+
+        y += 55
+
+        # ----------------------------------------------------
+        # 품목
+        # ----------------------------------------------------
+
+        for index, crop_key in enumerate(
+            CROP_KEYS
+        ):
+
+            crop = CROPS[crop_key]
+
+            selected = (
+                index
+                == self.shop_selected_index
+            )
+
+            if selected:
+                prefix = "▶ "
+                color = "#ffffff"
+            else:
+                prefix = "   "
+                color = "#aaaaaa"
+
+            if self.shop_mode == "buy":
+
+                price = crop.seed_price
+
+                owned = (
+                    self.inventory[
+                        "seeds"
+                    ][crop_key]
+                )
+
+                line = (
+                    f"{prefix}"
+                    f"{crop.name} 씨앗"
+                    f"     {price:>3} G"
+                    f"     보유 {owned}"
+                )
+
+            else:
+
+                price = crop.sell_price
+
+                owned = (
+                    self.inventory[
+                        "crops"
+                    ][crop_key]
+                )
+
+                line = (
+                    f"{prefix}"
+                    f"{crop.name}"
+                    f"          {price:>3} G"
+                    f"     보유 {owned}"
+                )
+
+            self.canvas.create_text(
+                left + 90,
+                y,
+                anchor="w",
+                text=line,
+                fill=color,
+                font=(
+                    "Malgun Gothic",
+                    15,
+                    "bold"
+                    if selected
+                    else "normal",
+                ),
+            )
+
+            y += 55
+
+        # ----------------------------------------------------
+        # 거래 메시지
+        # ----------------------------------------------------
+
+        message_top = bottom - 150
+
+        self.canvas.create_rectangle(
+            left + 40,
+            message_top,
+            right - 40,
+            message_top + 65,
+            fill="#151515",
+            outline="#555555",
+        )
+
+        self.canvas.create_text(
+            center_x,
+            message_top + 32,
+            text=self.shop_message,
+            fill="#ffffff",
+            font=(
+                "Malgun Gothic",
+                11,
+            ),
+            width=shop_width - 120,
+        )
+
+        # ----------------------------------------------------
+        # 상점 조작법
+        # ----------------------------------------------------
+
+        self.canvas.create_text(
+            center_x,
+            bottom - 45,
+            text=(
+                "← → / A D : 구매·판매    "
+                "↑ ↓ / W S : 품목 선택    "
+                "Z / SPACE / ENTER : 거래    "
+                "B / ESC : 나가기"
+            ),
+            fill="#bdbdbd",
+            font=(
+                "Malgun Gothic",
+                10,
+            ),
+        )
+
+    # ========================================================
     # 현재 타일 상세정보
     # ========================================================
 
-    def get_tile_info(self, tile):
+    def get_tile_info(
+        self,
+        tile
+    ):
 
         result = "[현재 칸]\n"
 
         if not tile.plowed:
 
-            result += "상태: 평범한 땅"
+            result += (
+                "상태: 평범한 땅"
+            )
 
             return result
 
         if not tile.has_crop():
 
-            result += "상태: 갈아놓은 땅"
+            result += (
+                "상태: 갈아놓은 땅"
+            )
 
             return result
 
@@ -1068,22 +1682,33 @@ class FarmGame:
 
         result += (
             f"작물: {crop.name}\n"
-            f"성장: {tile.age}/{crop.grow_days}\n"
+            f"성장: "
+            f"{tile.age}/{crop.grow_days}\n"
         )
 
         if tile.is_mature():
 
-            result += "상태: 수확 가능"
+            result += (
+                "상태: 수확 가능"
+            )
 
             return result
 
-        if tile.watered_today(self.day):
+        if tile.watered_today(
+            self.day
+        ):
 
-            result += "수분: 오늘 물 줌"
+            result += (
+                "수분: 오늘 물 줌"
+            )
 
-        elif tile.needs_water(self.day):
+        elif tile.needs_water(
+            self.day
+        ):
 
-            result += "수분: 물 필요!"
+            result += (
+                "수분: 물 필요!"
+            )
 
         else:
 
@@ -1096,7 +1721,8 @@ class FarmGame:
             )
 
             result += (
-                f"수분: 충분 ({remaining}일)"
+                f"수분: 충분 "
+                f"({remaining}일)"
             )
 
         return result
