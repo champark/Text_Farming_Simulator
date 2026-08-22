@@ -169,7 +169,6 @@ class FarmGame:
             screen_height - 100
         )
 
-        # 너무 작아지는 것은 방지
         self.window_width = max(
             self.window_width,
             1050
@@ -196,7 +195,6 @@ class FarmGame:
             f"+{pos_x}+{pos_y}"
         )
 
-        # 사용자가 직접 확대 가능
         self.root.resizable(True, True)
 
         self.root.minsize(
@@ -208,9 +206,9 @@ class FarmGame:
             bg="#181818"
         )
 
-        # ----------------------------------------------------
+        # ====================================================
         # 게임 상태
-        # ----------------------------------------------------
+        # ====================================================
 
         self.day = 1
 
@@ -229,18 +227,37 @@ class FarmGame:
 
         self.message = "농장에 도착했다."
 
-        # ----------------------------------------------------
-        # 통계
-        # ----------------------------------------------------
+        # ====================================================
+        # 돈
+        # ====================================================
 
-        self.harvest_count = {
-            key: 0
-            for key in CROPS
+        self.money = 500
+
+        # ====================================================
+        # 인벤토리
+        #
+        # seeds   = 씨앗
+        # crops   = 수확한 농산물
+        # ====================================================
+
+        self.inventory = {
+
+            "seeds": {
+                "wheat": 5,
+                "carrot": 5,
+                "potato": 5,
+            },
+
+            "crops": {
+                "wheat": 0,
+                "carrot": 0,
+                "potato": 0,
+            },
         }
 
-        # ----------------------------------------------------
+        # ====================================================
         # 밭
-        # ----------------------------------------------------
+        # ====================================================
 
         self.field = [
             [
@@ -250,9 +267,9 @@ class FarmGame:
             for _ in range(GRID_SIZE)
         ]
 
-        # ----------------------------------------------------
+        # ====================================================
         # 캔버스
-        # ----------------------------------------------------
+        # ====================================================
 
         self.canvas = tk.Canvas(
             self.root,
@@ -265,9 +282,9 @@ class FarmGame:
             expand=True
         )
 
-        # ----------------------------------------------------
+        # ====================================================
         # 키 입력
-        # ----------------------------------------------------
+        # ====================================================
 
         self.root.bind(
             "<KeyPress>",
@@ -338,7 +355,21 @@ class FarmGame:
 
         elif char == "2":
             self.selected_action = 1
-            self.message = "씨 뿌리기를 선택했다."
+
+            crop_key = CROP_KEYS[
+                self.selected_crop_index
+            ]
+
+            crop = CROPS[crop_key]
+
+            seed_count = self.inventory[
+                "seeds"
+            ][crop_key]
+
+            self.message = (
+                f"씨 뿌리기를 선택했다.\n"
+                f"{crop.name} 씨앗 보유량: {seed_count}"
+            )
 
         elif char == "3":
             self.selected_action = 2
@@ -419,8 +450,13 @@ class FarmGame:
 
         crop = CROPS[crop_key]
 
+        seed_count = self.inventory[
+            "seeds"
+        ][crop_key]
+
         self.message = (
-            f"씨앗 선택: {crop.name}"
+            f"씨앗 선택: {crop.name}\n"
+            f"보유 씨앗: {seed_count}개"
         )
 
     # ========================================================
@@ -514,14 +550,46 @@ class FarmGame:
 
         crop = CROPS[crop_key]
 
+        # ----------------------------------------------------
+        # 씨앗 재고 확인
+        # ----------------------------------------------------
+
+        seed_count = self.inventory[
+            "seeds"
+        ][crop_key]
+
+        if seed_count <= 0:
+
+            self.message = (
+                f"{crop.name} 씨앗이 없다!"
+            )
+
+            return
+
+        # ----------------------------------------------------
+        # 실제 씨앗 소비
+        # ----------------------------------------------------
+
+        self.inventory[
+            "seeds"
+        ][crop_key] -= 1
+
+        # ----------------------------------------------------
+        # 작물 심기
+        # ----------------------------------------------------
+
         tile.crop_type = crop_key
         tile.planted_day = self.day
         tile.age = 0
         tile.last_watered_day = None
 
+        remaining = self.inventory[
+            "seeds"
+        ][crop_key]
+
         self.message = (
             f"{crop.name} 씨앗을 심었다.\n"
-            f"물 주기: {crop.water_interval}일마다"
+            f"남은 씨앗: {remaining}개"
         )
 
     # ========================================================
@@ -610,18 +678,36 @@ class FarmGame:
 
         crop_key = tile.crop_type
 
-        self.harvest_count[crop_key] += 1
+        # ----------------------------------------------------
+        # 농산물 인벤토리에 추가
+        # ----------------------------------------------------
+
+        harvest_amount = 1
+
+        self.inventory[
+            "crops"
+        ][crop_key] += harvest_amount
+
+        total_amount = self.inventory[
+            "crops"
+        ][crop_key]
+
+        # ----------------------------------------------------
+        # 밭 초기화
+        # ----------------------------------------------------
 
         tile.crop_type = None
         tile.age = 0
         tile.last_watered_day = None
         tile.planted_day = 0
 
-        # 수확 후 갈아놓은 땅은 유지
+        # 수확 후에는 갈아놓은 상태 유지
         tile.plowed = True
 
         self.message = (
-            f"{crop.name}을 수확했다!"
+            f"{crop.name}을 수확했다!\n"
+            f"{crop.name} +{harvest_amount} "
+            f"(보유 {total_amount})"
         )
 
     # ========================================================
@@ -760,7 +846,7 @@ class FarmGame:
 
         panel_right = self.window_width - 25
 
-        y = 25
+        y = 22
 
         # ----------------------------------------------------
         # 제목
@@ -774,34 +860,37 @@ class FarmGame:
             fill="#ffffff",
             font=(
                 "Malgun Gothic",
-                23,
+                22,
                 "bold",
             ),
         )
 
-        y += 52
+        y += 50
 
         # ----------------------------------------------------
-        # 날짜
+        # 날짜 + 돈
         # ----------------------------------------------------
 
         self.canvas.create_text(
             panel_x,
             y,
             anchor="nw",
-            text=f"{self.day}일째",
+            text=(
+                f"{self.day}일째\n"
+                f"보유금: {self.money:,} G"
+            ),
             fill="#f1d58a",
             font=(
                 "Malgun Gothic",
-                19,
+                17,
                 "bold",
             ),
         )
 
-        y += 42
+        y += 72
 
         # ----------------------------------------------------
-        # 현재 작업
+        # 현재 작업 / 선택 씨앗
         # ----------------------------------------------------
 
         action = self.actions[
@@ -814,12 +903,16 @@ class FarmGame:
 
         crop = CROPS[crop_key]
 
+        seed_count = self.inventory[
+            "seeds"
+        ][crop_key]
+
         info = (
             f"[현재 작업]\n"
             f"{self.selected_action + 1}. {action}\n\n"
             f"[선택 씨앗]\n"
-            f"{crop.name}\n"
-            f"성장: {crop.grow_days}일\n"
+            f"{crop.name} × {seed_count}\n"
+            f"성장: {crop.grow_days}일 / "
             f"물: {crop.water_interval}일마다"
         )
 
@@ -831,11 +924,42 @@ class FarmGame:
             fill="#dddddd",
             font=(
                 "Malgun Gothic",
-                14,
+                13,
             ),
         )
 
-        y += 160
+        y += 145
+
+        # ----------------------------------------------------
+        # 인벤토리
+        # ----------------------------------------------------
+
+        inventory_text = (
+            "[인벤토리]\n"
+            "씨앗\n"
+            f"  밀     × {self.inventory['seeds']['wheat']}\n"
+            f"  당근   × {self.inventory['seeds']['carrot']}\n"
+            f"  감자   × {self.inventory['seeds']['potato']}\n"
+            "\n"
+            "농산물\n"
+            f"  밀     × {self.inventory['crops']['wheat']}\n"
+            f"  당근   × {self.inventory['crops']['carrot']}\n"
+            f"  감자   × {self.inventory['crops']['potato']}"
+        )
+
+        self.canvas.create_text(
+            panel_x,
+            y,
+            anchor="nw",
+            text=inventory_text,
+            fill="#d8e6c3",
+            font=(
+                "Malgun Gothic",
+                12,
+            ),
+        )
+
+        y += 190
 
         # ----------------------------------------------------
         # 현재 칸
@@ -853,11 +977,11 @@ class FarmGame:
             fill="#a9d6ff",
             font=(
                 "Malgun Gothic",
-                13,
+                12,
             ),
         )
 
-        y += 112
+        y += 105
 
         # ----------------------------------------------------
         # 메시지
@@ -867,7 +991,7 @@ class FarmGame:
             panel_x - 8,
             y - 8,
             panel_right,
-            y + 76,
+            y + 70,
             fill="#252525",
             outline="#666666",
             width=2,
@@ -885,36 +1009,11 @@ class FarmGame:
             fill="#ffffff",
             font=(
                 "Malgun Gothic",
-                12,
+                11,
             ),
         )
 
-        y += 98
-
-        # ----------------------------------------------------
-        # 수확량
-        # ----------------------------------------------------
-
-        harvest_text = (
-            "[수확량]\n"
-            f"밀   {self.harvest_count['wheat']}\n"
-            f"당근 {self.harvest_count['carrot']}\n"
-            f"감자 {self.harvest_count['potato']}"
-        )
-
-        self.canvas.create_text(
-            panel_x,
-            y,
-            anchor="nw",
-            text=harvest_text,
-            fill="#d3d3d3",
-            font=(
-                "Malgun Gothic",
-                12,
-            ),
-        )
-
-        y += 100
+        y += 90
 
         # ----------------------------------------------------
         # 조작법
@@ -941,7 +1040,7 @@ class FarmGame:
             fill="#bbbbbb",
             font=(
                 "Malgun Gothic",
-                11,
+                10,
             ),
         )
 
