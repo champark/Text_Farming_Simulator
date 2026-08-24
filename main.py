@@ -23,15 +23,15 @@ DESIRED_WINDOW_WIDTH = (
     + PANEL_WIDTH
 )
 
-DESIRED_WINDOW_HEIGHT = 860
+DESIRED_WINDOW_HEIGHT = 900
 
 
 # ============================================================
 # 시간 설정
 # ============================================================
 
-DAY_START_MINUTE = 6 * 60       # 06:00
-DAY_END_MINUTE = 22 * 60        # 22:00
+DAY_START_MINUTE = 6 * 60
+DAY_END_MINUTE = 22 * 60
 
 TIME_MOVE = 5
 TIME_PLOW = 20
@@ -39,6 +39,19 @@ TIME_PLANT = 10
 TIME_WATER = 10
 TIME_HARVEST = 15
 TIME_SHOP_TRANSACTION = 5
+
+
+# ============================================================
+# 체력 설정
+# ============================================================
+
+MAX_STAMINA = 100
+
+STAMINA_MOVE = 1
+STAMINA_PLOW = 8
+STAMINA_PLANT = 3
+STAMINA_WATER = 4
+STAMINA_HARVEST = 5
 
 
 # ============================================================
@@ -304,6 +317,13 @@ class FarmGame:
         )
 
         # ====================================================
+        # 체력
+        # ====================================================
+
+        self.max_stamina = MAX_STAMINA
+        self.stamina = MAX_STAMINA
+
+        # ====================================================
         # 플레이어
         # ====================================================
 
@@ -404,7 +424,7 @@ class FarmGame:
         )
 
         # ====================================================
-        # 키 입력
+        # 입력
         # ====================================================
 
         self.root.bind(
@@ -430,7 +450,7 @@ class FarmGame:
         self.root.mainloop()
 
     # ========================================================
-    # 시간 관련
+    # 시간
     # ========================================================
 
     def format_time(
@@ -480,10 +500,79 @@ class FarmGame:
 
         self.message = (
             "오늘은 시간이 너무 늦었다.\n"
-            f"필요 시간: {required_minutes}분 / "
-            f"현재 {self.format_time()}\n"
+            f"현재 {self.format_time()} / "
+            f"필요 시간 {required_minutes}분\n"
             "N키를 눌러 잠자리에 들 수 있다."
         )
+
+    # ========================================================
+    # 체력
+    # ========================================================
+
+    def can_spend_stamina(
+        self,
+        amount
+    ):
+
+        return (
+            self.stamina
+            >= amount
+        )
+
+    def spend_stamina(
+        self,
+        amount
+    ):
+
+        self.stamina -= amount
+
+        if self.stamina < 0:
+            self.stamina = 0
+
+    def stamina_block_message(
+        self,
+        required_stamina
+    ):
+
+        self.message = (
+            "체력이 부족하다.\n"
+            f"현재 체력 "
+            f"{self.stamina}/{self.max_stamina} / "
+            f"필요 체력 {required_stamina}\n"
+            "N키를 눌러 잠을 자면 체력이 회복된다."
+        )
+
+    # ========================================================
+    # 행동 가능 여부
+    # ========================================================
+
+    def can_perform_action(
+        self,
+        time_cost,
+        stamina_cost
+    ):
+
+        if not self.can_spend_time(
+            time_cost
+        ):
+
+            self.time_block_message(
+                time_cost
+            )
+
+            return False
+
+        if not self.can_spend_stamina(
+            stamina_cost
+        ):
+
+            self.stamina_block_message(
+                stamina_cost
+            )
+
+            return False
+
+        return True
 
     # ========================================================
     # 창 크기 변경
@@ -507,7 +596,7 @@ class FarmGame:
             self.draw()
 
     # ========================================================
-    # 키 입력
+    # 입력
     # ========================================================
 
     def on_key(
@@ -706,10 +795,6 @@ class FarmGame:
             + dy
         )
 
-        # ----------------------------------------------------
-        # 맵 밖이면 이동 실패
-        # ----------------------------------------------------
-
         if not (
             0 <= new_x < GRID_SIZE
             and
@@ -722,17 +807,10 @@ class FarmGame:
 
             return
 
-        # ----------------------------------------------------
-        # 시간 확인
-        # ----------------------------------------------------
-
-        if not self.can_spend_time(
-            TIME_MOVE
+        if not self.can_perform_action(
+            TIME_MOVE,
+            STAMINA_MOVE
         ):
-
-            self.time_block_message(
-                TIME_MOVE
-            )
 
             return
 
@@ -741,6 +819,10 @@ class FarmGame:
 
         self.spend_time(
             TIME_MOVE
+        )
+
+        self.spend_stamina(
+            STAMINA_MOVE
         )
 
     # ========================================================
@@ -840,13 +922,10 @@ class FarmGame:
 
             return
 
-        if not self.can_spend_time(
-            TIME_PLOW
+        if not self.can_perform_action(
+            TIME_PLOW,
+            STAMINA_PLOW
         ):
-
-            self.time_block_message(
-                TIME_PLOW
-            )
 
             return
 
@@ -856,9 +935,14 @@ class FarmGame:
             TIME_PLOW
         )
 
+        self.spend_stamina(
+            STAMINA_PLOW
+        )
+
         self.message = (
-            f"땅을 갈았다. "
-            f"({TIME_PLOW}분)"
+            "땅을 갈았다.\n"
+            f"시간 -{TIME_PLOW}분 / "
+            f"체력 -{STAMINA_PLOW}"
         )
 
     # ========================================================
@@ -910,13 +994,10 @@ class FarmGame:
 
             return
 
-        if not self.can_spend_time(
-            TIME_PLANT
+        if not self.can_perform_action(
+            TIME_PLANT,
+            STAMINA_PLANT
         ):
-
-            self.time_block_message(
-                TIME_PLANT
-            )
 
             return
 
@@ -924,13 +1005,26 @@ class FarmGame:
             "seeds"
         ][crop_key] -= 1
 
-        tile.crop_type = crop_key
-        tile.planted_day = self.day
+        tile.crop_type = (
+            crop_key
+        )
+
+        tile.planted_day = (
+            self.day
+        )
+
         tile.age = 0
-        tile.last_watered_day = None
+
+        tile.last_watered_day = (
+            None
+        )
 
         self.spend_time(
             TIME_PLANT
+        )
+
+        self.spend_stamina(
+            STAMINA_PLANT
         )
 
         remaining = (
@@ -940,9 +1034,10 @@ class FarmGame:
         )
 
         self.message = (
-            f"{crop.name} 씨앗을 심었다. "
-            f"({TIME_PLANT}분)\n"
-            f"남은 씨앗: {remaining}개"
+            f"{crop.name} 씨앗을 심었다.\n"
+            f"시간 -{TIME_PLANT}분 / "
+            f"체력 -{STAMINA_PLANT} / "
+            f"씨앗 {remaining}개"
         )
 
     # ========================================================
@@ -1006,13 +1101,10 @@ class FarmGame:
 
             return
 
-        if not self.can_spend_time(
-            TIME_WATER
+        if not self.can_perform_action(
+            TIME_WATER,
+            STAMINA_WATER
         ):
-
-            self.time_block_message(
-                TIME_WATER
-            )
 
             return
 
@@ -1024,9 +1116,14 @@ class FarmGame:
             TIME_WATER
         )
 
+        self.spend_stamina(
+            STAMINA_WATER
+        )
+
         self.message = (
-            f"{crop.name}에 물을 주었다. "
-            f"({TIME_WATER}분)"
+            f"{crop.name}에 물을 주었다.\n"
+            f"시간 -{TIME_WATER}분 / "
+            f"체력 -{STAMINA_WATER}"
         )
 
     # ========================================================
@@ -1062,13 +1159,10 @@ class FarmGame:
 
             return
 
-        if not self.can_spend_time(
-            TIME_HARVEST
+        if not self.can_perform_action(
+            TIME_HARVEST,
+            STAMINA_HARVEST
         ):
-
-            self.time_block_message(
-                TIME_HARVEST
-            )
 
             return
 
@@ -1101,24 +1195,29 @@ class FarmGame:
             TIME_HARVEST
         )
 
+        self.spend_stamina(
+            STAMINA_HARVEST
+        )
+
         self.message = (
-            f"{crop.name}을 수확했다! "
-            f"({TIME_HARVEST}분)\n"
-            f"{crop.name} +1 "
-            f"(보유 {total_amount})"
+            f"{crop.name}을 수확했다!\n"
+            f"{crop.name} +1 / "
+            f"시간 -{TIME_HARVEST}분 / "
+            f"체력 -{STAMINA_HARVEST}\n"
+            f"현재 보유량: {total_amount}"
         )
 
     # ========================================================
-    # 잠자기 / 다음 날
+    # 잠자기
     # ========================================================
 
     def sleep(self):
 
-        # ----------------------------------------------------
-        # 오늘의 성장 처리
-        # ----------------------------------------------------
-
         grown_count = 0
+
+        # ----------------------------------------------------
+        # 오늘 성장 처리
+        # ----------------------------------------------------
 
         for row in self.field:
 
@@ -1129,6 +1228,7 @@ class FarmGame:
                 ):
 
                     tile.age += 1
+
                     grown_count += 1
 
                     crop = (
@@ -1154,17 +1254,24 @@ class FarmGame:
             DAY_START_MINUTE
         )
 
+        # 체력 완전 회복
+        self.stamina = (
+            self.max_stamina
+        )
+
         if grown_count > 0:
 
             self.message = (
                 f"{self.day}일째 아침이다.\n"
-                f"작물 {grown_count}칸이 성장했다."
+                f"작물 {grown_count}칸이 성장했다.\n"
+                "체력이 완전히 회복되었다."
             )
 
         else:
 
             self.message = (
-                f"{self.day}일째 아침이다."
+                f"{self.day}일째 아침이다.\n"
+                "체력이 완전히 회복되었다."
             )
 
     # ========================================================
@@ -1209,7 +1316,6 @@ class FarmGame:
 
             return
 
-        # 구매
         if (
             char == "a"
             or key == "left"
@@ -1223,7 +1329,6 @@ class FarmGame:
 
             return
 
-        # 판매
         if (
             char == "d"
             or key == "right"
@@ -1237,7 +1342,6 @@ class FarmGame:
 
             return
 
-        # 위
         if (
             char == "w"
             or key == "up"
@@ -1251,7 +1355,6 @@ class FarmGame:
 
             return
 
-        # 아래
         if (
             char == "s"
             or key == "down"
@@ -1265,7 +1368,6 @@ class FarmGame:
 
             return
 
-        # 거래
         if (
             char == "z"
             or key == "return"
@@ -1438,13 +1540,8 @@ class FarmGame:
 
     def draw_field(self):
 
-        offset_x = (
-            FIELD_MARGIN
-        )
-
-        offset_y = (
-            FIELD_MARGIN
-        )
+        offset_x = FIELD_MARGIN
+        offset_y = FIELD_MARGIN
 
         for y in range(
             GRID_SIZE
@@ -1468,24 +1565,17 @@ class FarmGame:
                     + y * CELL_SIZE
                 )
 
-                # ------------------------------------------------
-                # 배경색
-                # ------------------------------------------------
-
                 bg = "#3a2b22"
 
                 if tile.plowed:
-
                     bg = "#62452f"
 
                 if tile.has_crop():
-
                     bg = "#44552e"
 
                 if tile.watered_today(
                     self.day
                 ):
-
                     bg = "#355667"
 
                 self.canvas.create_rectangle(
@@ -1498,14 +1588,9 @@ class FarmGame:
                     width=2,
                 )
 
-                # ------------------------------------------------
-                # 문자
-                # ------------------------------------------------
-
                 symbol = "."
 
                 if tile.plowed:
-
                     symbol = ":"
 
                 if tile.has_crop():
@@ -1519,7 +1604,6 @@ class FarmGame:
                     )
 
                     if tile.is_mature():
-
                         symbol = (
                             symbol.upper()
                         )
@@ -1561,7 +1645,12 @@ class FarmGame:
             - 25
         )
 
-        y = 20
+        panel_width = max(
+            250,
+            panel_right - panel_x
+        )
+
+        y = 18
 
         # ----------------------------------------------------
         # 제목
@@ -1580,7 +1669,7 @@ class FarmGame:
             ),
         )
 
-        y += 48
+        y += 46
 
         # ----------------------------------------------------
         # 날짜 / 시간 / 돈
@@ -1588,11 +1677,7 @@ class FarmGame:
 
         time_color = "#f1d58a"
 
-        if (
-            self.current_time
-            >= 20 * 60
-        ):
-
+        if self.current_time >= 20 * 60:
             time_color = "#ffad8a"
 
         self.canvas.create_text(
@@ -1607,12 +1692,83 @@ class FarmGame:
             fill=time_color,
             font=(
                 "Malgun Gothic",
-                16,
+                15,
                 "bold",
             ),
         )
 
-        y += 42
+        y += 38
+
+        # ----------------------------------------------------
+        # 체력
+        # ----------------------------------------------------
+
+        self.canvas.create_text(
+            panel_x,
+            y,
+            anchor="nw",
+            text=(
+                f"체력 "
+                f"{self.stamina}/{self.max_stamina}"
+            ),
+            fill="#dddddd",
+            font=(
+                "Malgun Gothic",
+                11,
+                "bold",
+            ),
+        )
+
+        y += 24
+
+        bar_width = min(
+            330,
+            panel_width - 20
+        )
+
+        bar_height = 18
+
+        self.canvas.create_rectangle(
+            panel_x,
+            y,
+            panel_x + bar_width,
+            y + bar_height,
+            fill="#333333",
+            outline="#777777",
+        )
+
+        stamina_ratio = (
+            self.stamina
+            / self.max_stamina
+        )
+
+        current_bar_width = (
+            bar_width
+            * stamina_ratio
+        )
+
+        if stamina_ratio > 0.6:
+
+            stamina_color = "#5eaf66"
+
+        elif stamina_ratio > 0.3:
+
+            stamina_color = "#d4ad4d"
+
+        else:
+
+            stamina_color = "#c95a5a"
+
+        self.canvas.create_rectangle(
+            panel_x,
+            y,
+            panel_x + current_bar_width,
+            y + bar_height,
+            fill=stamina_color,
+            outline="",
+        )
+
+        y += 32
 
         # ----------------------------------------------------
         # 현재 작업
@@ -1641,8 +1797,8 @@ class FarmGame:
         info = (
             "[현재 작업]\n"
             f"{self.selected_action + 1}. "
-            f"{action}\n\n"
-            "[선택 씨앗]\n"
+            f"{action}\n"
+            f"선택 씨앗: "
             f"{crop.name} × {seed_count}\n"
             f"성장 {crop.grow_days}일 / "
             f"물 {crop.water_interval}일마다"
@@ -1656,11 +1812,11 @@ class FarmGame:
             fill="#dddddd",
             font=(
                 "Malgun Gothic",
-                12,
+                11,
             ),
         )
 
-        y += 132
+        y += 92
 
         # ----------------------------------------------------
         # 인벤토리
@@ -1668,17 +1824,17 @@ class FarmGame:
 
         inventory_text = (
             "[인벤토리]\n"
-            "씨앗                    농산물\n"
-            f"밀    {self.inventory['seeds']['wheat']:>3}"
-            f"          밀    "
+            "씨앗                 농산물\n"
+            f"밀   {self.inventory['seeds']['wheat']:>3}"
+            f"          밀   "
             f"{self.inventory['crops']['wheat']:>3}\n"
 
-            f"당근  {self.inventory['seeds']['carrot']:>3}"
-            f"          당근  "
+            f"당근 {self.inventory['seeds']['carrot']:>3}"
+            f"          당근 "
             f"{self.inventory['crops']['carrot']:>3}\n"
 
-            f"감자  {self.inventory['seeds']['potato']:>3}"
-            f"          감자  "
+            f"감자 {self.inventory['seeds']['potato']:>3}"
+            f"          감자 "
             f"{self.inventory['crops']['potato']:>3}"
         )
 
@@ -1690,11 +1846,11 @@ class FarmGame:
             fill="#d8e6c3",
             font=(
                 "Malgun Gothic",
-                11,
+                10,
             ),
         )
 
-        y += 100
+        y += 92
 
         # ----------------------------------------------------
         # 현재 칸
@@ -1718,11 +1874,11 @@ class FarmGame:
             fill="#a9d6ff",
             font=(
                 "Malgun Gothic",
-                11,
+                10,
             ),
         )
 
-        y += 92
+        y += 84
 
         # ----------------------------------------------------
         # 메시지
@@ -1732,7 +1888,7 @@ class FarmGame:
             panel_x - 8,
             y - 7,
             panel_right,
-            y + 72,
+            y + 77,
             fill="#252525",
             outline="#666666",
             width=2,
@@ -1744,7 +1900,7 @@ class FarmGame:
             anchor="nw",
             text=self.message,
             width=max(
-                250,
+                240,
                 panel_right
                 - panel_x
                 - 20
@@ -1756,35 +1912,35 @@ class FarmGame:
             ),
         )
 
-        y += 92
+        y += 94
 
         # ----------------------------------------------------
-        # 시간 소모
+        # 행동 비용
         # ----------------------------------------------------
 
-        time_info = (
-            "[소요 시간]\n"
-            f"이동 {TIME_MOVE}분   "
-            f"쟁기질 {TIME_PLOW}분   "
-            f"파종 {TIME_PLANT}분\n"
-            f"물주기 {TIME_WATER}분   "
-            f"수확 {TIME_HARVEST}분   "
-            f"거래 {TIME_SHOP_TRANSACTION}분"
+        cost_info = (
+            "[행동 비용]\n"
+            f"이동      {TIME_MOVE}분 / 체력 {STAMINA_MOVE}\n"
+            f"쟁기질   {TIME_PLOW}분 / 체력 {STAMINA_PLOW}\n"
+            f"파종      {TIME_PLANT}분 / 체력 {STAMINA_PLANT}\n"
+            f"물주기   {TIME_WATER}분 / 체력 {STAMINA_WATER}\n"
+            f"수확      {TIME_HARVEST}분 / 체력 {STAMINA_HARVEST}\n"
+            f"거래      {TIME_SHOP_TRANSACTION}분 / 체력 0"
         )
 
         self.canvas.create_text(
             panel_x,
             y,
             anchor="nw",
-            text=time_info,
+            text=cost_info,
             fill="#d3c9a3",
             font=(
                 "Malgun Gothic",
-                10,
+                9,
             ),
         )
 
-        y += 72
+        y += 116
 
         # ----------------------------------------------------
         # 조작법
@@ -1798,7 +1954,7 @@ class FarmGame:
             "Q / E              씨앗 선택\n"
             "Z / SPACE / ENTER  실행\n"
             "B                  상점\n"
-            "N                  잠자기 / 다음 날\n"
+            "N                  잠자기\n"
             "ESC                종료\n"
             "※ 한글 입력 상태 대응"
         )
@@ -1879,10 +2035,6 @@ class FarmGame:
             top + 25
         )
 
-        # ----------------------------------------------------
-        # 상점 제목
-        # ----------------------------------------------------
-
         self.canvas.create_text(
             center_x,
             y,
@@ -1913,10 +2065,6 @@ class FarmGame:
         )
 
         y += 46
-
-        # ----------------------------------------------------
-        # 구매 / 판매
-        # ----------------------------------------------------
 
         buy_color = (
             "#ffffff"
@@ -1955,10 +2103,6 @@ class FarmGame:
         )
 
         y += 55
-
-        # ----------------------------------------------------
-        # 상품 목록
-        # ----------------------------------------------------
 
         for (
             index,
@@ -2043,10 +2187,6 @@ class FarmGame:
 
             y += 55
 
-        # ----------------------------------------------------
-        # 메시지
-        # ----------------------------------------------------
-
         message_top = (
             bottom - 150
         )
@@ -2071,10 +2211,6 @@ class FarmGame:
             ),
             width=shop_width - 120,
         )
-
-        # ----------------------------------------------------
-        # 조작
-        # ----------------------------------------------------
 
         self.canvas.create_text(
             center_x,
