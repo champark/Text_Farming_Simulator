@@ -12,6 +12,13 @@ GAME_TITLE = "텍스트 파밍 시뮬레이터"
 GRID_SIZE = 9
 CELL_SIZE = 72
 
+# 9x9 밭 아래 중앙에 별도 집 칸을 둔다.
+# 밭 자체의 81칸은 그대로 유지된다.
+HOUSE_POS = (
+    GRID_SIZE // 2,
+    GRID_SIZE,
+)
+
 FIELD_MARGIN = 25
 PANEL_WIDTH = 500
 
@@ -47,7 +54,7 @@ TIME_SHOP_TRANSACTION = 5
 
 MAX_STAMINA = 100
 
-STAMINA_MOVE = 1
+STAMINA_MOVE = 0
 STAMINA_PLOW = 8
 STAMINA_PLANT = 3
 STAMINA_WATER = 4
@@ -539,7 +546,8 @@ class FarmGame:
             f"현재 체력 "
             f"{self.stamina}/{self.max_stamina} / "
             f"필요 체력 {required_stamina}\n"
-            "N키를 눌러 잠을 자면 체력이 회복된다."
+            "이동은 가능하다. 집으로 돌아가 "
+            "N키를 눌러 잠을 자자."
         )
 
     # ========================================================
@@ -795,34 +803,38 @@ class FarmGame:
             + dy
         )
 
-        if not (
+        inside_field = (
             0 <= new_x < GRID_SIZE
             and
             0 <= new_y < GRID_SIZE
+        )
+
+        at_house = (
+            (new_x, new_y)
+            == HOUSE_POS
+        )
+
+        if not (
+            inside_field
+            or at_house
         ):
 
             self.message = (
-                "밭 밖으로 나갈 수 없다."
+                "그쪽으로는 갈 수 없다."
             )
 
             return
 
-        if not self.can_perform_action(
-            TIME_MOVE,
-            STAMINA_MOVE
-        ):
-
-            return
+        # 이동은 체력을 소모하지 않는다.
+        # 작업 종료 시각 이후에도 집으로 돌아갈 수 있도록
+        # 이동 자체는 시간 제한으로 막지 않는다.
+        # 시간은 기존처럼 5분 흐른다.
 
         self.player_x = new_x
         self.player_y = new_y
 
         self.spend_time(
             TIME_MOVE
-        )
-
-        self.spend_stamina(
-            STAMINA_MOVE
         )
 
     # ========================================================
@@ -867,6 +879,13 @@ class FarmGame:
 
     def current_tile(self):
 
+        if (
+            (self.player_x, self.player_y)
+            == HOUSE_POS
+        ):
+
+            return None
+
         return self.field[
             self.player_y
         ][
@@ -878,6 +897,15 @@ class FarmGame:
     # ========================================================
 
     def interact(self):
+
+        if (
+            (self.player_x, self.player_y)
+            == HOUSE_POS
+        ):
+
+            self.sleep()
+
+            return
 
         if self.selected_action == 0:
 
@@ -1212,6 +1240,18 @@ class FarmGame:
     # ========================================================
 
     def sleep(self):
+
+        if (
+            (self.player_x, self.player_y)
+            != HOUSE_POS
+        ):
+
+            self.message = (
+                "잠은 집에서만 잘 수 있다.\n"
+                "밭 아래쪽의 H 표시로 돌아가자."
+            )
+
+            return
 
         grown_count = 0
 
@@ -1628,6 +1668,67 @@ class FarmGame:
                     ),
                 )
 
+        # ----------------------------------------------------
+        # 집
+        # 9x9 밭 아래 중앙에 별도 한 칸으로 표시한다.
+        # ----------------------------------------------------
+
+        house_x, house_y = HOUSE_POS
+
+        px = (
+            offset_x
+            + house_x * CELL_SIZE
+        )
+
+        py = (
+            offset_y
+            + house_y * CELL_SIZE
+        )
+
+        self.canvas.create_rectangle(
+            px,
+            py,
+            px + CELL_SIZE,
+            py + CELL_SIZE,
+            fill="#4c3a32",
+            outline="#d8c48c",
+            width=3,
+        )
+
+        house_symbol = "H"
+
+        if (
+            self.player_x == house_x
+            and
+            self.player_y == house_y
+        ):
+
+            house_symbol = "P"
+
+        self.canvas.create_text(
+            px + CELL_SIZE // 2,
+            py + CELL_SIZE // 2 - 7,
+            text=house_symbol,
+            fill="#ffffff",
+            font=(
+                "Consolas",
+                30,
+                "bold",
+            ),
+        )
+
+        self.canvas.create_text(
+            px + CELL_SIZE // 2,
+            py + CELL_SIZE - 10,
+            text="집",
+            fill="#f1d58a",
+            font=(
+                "Malgun Gothic",
+                9,
+                "bold",
+            ),
+        )
+
     # ========================================================
     # 오른쪽 패널
     # ========================================================
@@ -1954,7 +2055,7 @@ class FarmGame:
             "Q / E              씨앗 선택\n"
             "Z / SPACE / ENTER  실행\n"
             "B                  상점\n"
-            "N                  잠자기\n"
+            "N                  집에서 잠자기\n"
             "ESC                종료\n"
             "※ 한글 입력 상태 대응"
         )
@@ -2240,6 +2341,15 @@ class FarmGame:
         result = (
             "[현재 칸]\n"
         )
+
+        if tile is None:
+
+            result += (
+                "장소: 집\n"
+                "N / Z / SPACE / ENTER : 잠자기"
+            )
+
+            return result
 
         if not tile.plowed:
 
