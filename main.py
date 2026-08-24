@@ -30,7 +30,7 @@ DESIRED_WINDOW_WIDTH = (
     + PANEL_WIDTH
 )
 
-DESIRED_WINDOW_HEIGHT = 900
+DESIRED_WINDOW_HEIGHT = 1000
 
 
 # ============================================================
@@ -269,7 +269,7 @@ class FarmGame:
 
         available_height = max(
             700,
-            screen_height - 100
+            screen_height - 50
         )
 
         self.window_width = min(
@@ -358,6 +358,16 @@ class FarmGame:
 
         self.message = (
             "농장에 도착했다."
+        )
+
+        # ====================================================
+        # 최근 기록
+        # ====================================================
+
+        self.activity_log = []
+
+        self.add_log(
+            "농장에 도착"
         )
 
         # ====================================================
@@ -581,6 +591,30 @@ class FarmGame:
             return False
 
         return True
+
+    # ========================================================
+    # 최근 기록
+    # ========================================================
+
+    def add_log(
+        self,
+        text
+    ):
+
+        entry = (
+            f"{self.format_time()}  "
+            f"{text}"
+        )
+
+        self.activity_log.append(
+            entry
+        )
+
+        # 내부적으로는 최근 100개까지 보관
+        if len(self.activity_log) > 100:
+            self.activity_log = (
+                self.activity_log[-100:]
+            )
 
     # ========================================================
     # 창 크기 변경
@@ -973,6 +1007,10 @@ class FarmGame:
             f"체력 -{STAMINA_PLOW}"
         )
 
+        self.add_log(
+            "밭 쟁기질"
+        )
+
     # ========================================================
     # 씨 뿌리기
     # ========================================================
@@ -1068,6 +1106,10 @@ class FarmGame:
             f"씨앗 {remaining}개"
         )
 
+        self.add_log(
+            f"{crop.name} 씨앗 파종"
+        )
+
     # ========================================================
     # 물주기
     # ========================================================
@@ -1154,6 +1196,10 @@ class FarmGame:
             f"체력 -{STAMINA_WATER}"
         )
 
+        self.add_log(
+            f"{crop.name}에 물을 줌"
+        )
+
     # ========================================================
     # 수확
     # ========================================================
@@ -1235,6 +1281,10 @@ class FarmGame:
             f"현재 보유량: {total_amount}"
         )
 
+        self.add_log(
+            f"{crop.name} 수확 +1"
+        )
+
     # ========================================================
     # 잠자기
     # ========================================================
@@ -1299,7 +1349,19 @@ class FarmGame:
             self.max_stamina
         )
 
+        self.add_log(
+            f"{self.day}일째 아침"
+        )
+
+        self.add_log(
+            "체력 완전 회복"
+        )
+
         if grown_count > 0:
+
+            self.add_log(
+                f"작물 {grown_count}칸 성장"
+            )
 
             self.message = (
                 f"{self.day}일째 아침이다.\n"
@@ -1335,6 +1397,10 @@ class FarmGame:
 
         self.message = (
             "상점을 나왔다."
+        )
+
+        self.add_log(
+            "상점에서 나옴"
         )
 
     # ========================================================
@@ -1485,6 +1551,10 @@ class FarmGame:
             f"{TIME_SHOP_TRANSACTION}분 경과"
         )
 
+        self.add_log(
+            f"{crop.name} 씨앗 구입 -{price}G"
+        )
+
     # ========================================================
     # 농산물 판매
     # ========================================================
@@ -1552,6 +1622,10 @@ class FarmGame:
             f"{TIME_SHOP_TRANSACTION}분 경과"
         )
 
+        self.add_log(
+            f"{crop.name} 판매 +{price}G"
+        )
+
     # ========================================================
     # 전체 화면
     # ========================================================
@@ -1567,8 +1641,11 @@ class FarmGame:
             "all"
         )
 
+        self.draw_top_hud()
         self.draw_field()
-        self.draw_panel()
+        self.draw_right_panel()
+        self.draw_action_bar()
+        self.draw_message_bar()
 
         if self.shop_open:
 
@@ -1581,7 +1658,7 @@ class FarmGame:
     def draw_field(self):
 
         offset_x = FIELD_MARGIN
-        offset_y = FIELD_MARGIN
+        offset_y = 90
 
         for y in range(
             GRID_SIZE
@@ -1691,7 +1768,7 @@ class FarmGame:
             px + CELL_SIZE,
             py + CELL_SIZE,
             fill="#4c3a32",
-            outline="#d8c48c",
+            outline="#8a8a8a",
             width=3,
         )
 
@@ -1729,88 +1806,94 @@ class FarmGame:
             ),
         )
 
-    # ========================================================
-    # 오른쪽 패널
-    # ========================================================
-
-    def draw_panel(self):
-
-        panel_x = (
-            FIELD_MARGIN
-            + FIELD_PIXEL_SIZE
-            + 40
-        )
-
-        panel_right = (
-            self.window_width
-            - 25
-        )
-
-        panel_width = max(
-            250,
-            panel_right - panel_x
-        )
-
-        y = 18
-
         # ----------------------------------------------------
-        # 제목
+        # 플레이어 위치 강조 테두리
+        #
+        # 모든 타일과 집을 그린 뒤 마지막에 덧그려
+        # 인접 칸에 테두리가 가려지지 않게 한다.
         # ----------------------------------------------------
+
+        player_px = (
+            offset_x
+            + self.player_x * CELL_SIZE
+        )
+
+        player_py = (
+            offset_y
+            + self.player_y * CELL_SIZE
+        )
+
+        inset = 3
+
+        self.canvas.create_rectangle(
+            player_px + inset,
+            player_py + inset,
+            player_px + CELL_SIZE - inset,
+            player_py + CELL_SIZE - inset,
+            outline="#f1d58a",
+            width=4,
+        )
+
+    # ========================================================
+    # 상단 HUD
+    # ========================================================
+
+    def draw_top_hud(self):
+
+        left = FIELD_MARGIN
+        right = self.window_width - 25
+        top = 18
+        bottom = 68
+
+        self.canvas.create_rectangle(
+            left,
+            top,
+            right,
+            bottom,
+            fill="#222222",
+            outline="#666666",
+            width=2,
+        )
 
         self.canvas.create_text(
-            panel_x,
-            y,
+            left + 18,
+            top + 13,
             anchor="nw",
-            text=GAME_TITLE,
-            fill="#ffffff",
+            text=(
+                f"{self.day}일째   "
+                f"{self.format_time()}"
+            ),
+            fill="#f1d58a",
             font=(
                 "Malgun Gothic",
-                21,
+                14,
                 "bold",
             ),
         )
 
-        y += 46
-
-        # ----------------------------------------------------
-        # 날짜 / 시간 / 돈
-        # ----------------------------------------------------
-
-        time_color = "#f1d58a"
-
-        if self.current_time >= 20 * 60:
-            time_color = "#ffad8a"
-
         self.canvas.create_text(
-            panel_x,
-            y,
-            anchor="nw",
-            text=(
-                f"{self.day}일째    "
-                f"{self.format_time()}    "
-                f"{self.money:,} G"
-            ),
-            fill=time_color,
+            right - 18,
+            top + 13,
+            anchor="ne",
+            text=f"{self.money:,} G",
+            fill="#f1d58a",
             font=(
                 "Malgun Gothic",
-                15,
+                14,
                 "bold",
             ),
         )
 
-        y += 38
-
-        # ----------------------------------------------------
-        # 체력
-        # ----------------------------------------------------
+        stamina_text_x = (
+            left + 245
+        )
 
         self.canvas.create_text(
-            panel_x,
-            y,
+            stamina_text_x,
+            top + 13,
             anchor="nw",
             text=(
-                f"체력 "
-                f"{self.stamina}/{self.max_stamina}"
+                f"체력 {self.stamina}/{self.max_stamina}"
             ),
             fill="#dddddd",
             font=(
@@ -1820,20 +1903,22 @@ class FarmGame:
             ),
         )
 
-        y += 24
-
-        bar_width = min(
-            330,
-            panel_width - 20
+        bar_x = (
+            stamina_text_x + 125
         )
 
+        bar_y = (
+            top + 15
+        )
+
+        bar_width = 220
         bar_height = 18
 
         self.canvas.create_rectangle(
-            panel_x,
-            y,
-            panel_x + bar_width,
-            y + bar_height,
+            bar_x,
+            bar_y,
+            bar_x + bar_width,
+            bar_y + bar_height,
             fill="#333333",
             outline="#777777",
         )
@@ -1843,43 +1928,262 @@ class FarmGame:
             / self.max_stamina
         )
 
-        current_bar_width = (
-            bar_width
-            * stamina_ratio
-        )
-
         if stamina_ratio > 0.6:
-
             stamina_color = "#5eaf66"
 
         elif stamina_ratio > 0.3:
-
             stamina_color = "#d4ad4d"
 
         else:
-
             stamina_color = "#c95a5a"
 
         self.canvas.create_rectangle(
-            panel_x,
-            y,
-            panel_x + current_bar_width,
-            y + bar_height,
+            bar_x,
+            bar_y,
+            bar_x + (
+                bar_width
+                * stamina_ratio
+            ),
+            bar_y + bar_height,
             fill=stamina_color,
             outline="",
         )
 
-        y += 32
+    # ========================================================
+    # 오른쪽 패널
+    # ========================================================
 
-        # ----------------------------------------------------
-        # 현재 작업
-        # ----------------------------------------------------
+    def draw_right_panel(self):
 
-        action = (
-            self.actions[
-                self.selected_action
-            ]
+        panel_x = (
+            FIELD_MARGIN
+            + FIELD_PIXEL_SIZE
+            + 35
         )
+
+        panel_right = (
+            self.window_width
+            - 25
+        )
+
+        top = 90
+        bottom = min(
+            self.window_height - 220,
+            735
+        )
+
+        # ----------------------------------------------------
+        # 현재 칸
+        # ----------------------------------------------------
+
+        current_bottom = (
+            top + 225
+        )
+
+        self.canvas.create_rectangle(
+            panel_x,
+            top,
+            panel_right,
+            current_bottom,
+            fill="#202020",
+            outline="#666666",
+            width=2,
+        )
+
+        self.canvas.create_text(
+            panel_x + 14,
+            top + 12,
+            anchor="nw",
+            text="[현재 칸]",
+            fill="#a9d6ff",
+            font=(
+                "Malgun Gothic",
+                12,
+                "bold",
+            ),
+        )
+
+        tile = (
+            self.current_tile()
+        )
+
+        tile_text = (
+            self.get_tile_info(
+                tile
+            )
+        )
+
+        # "[현재 칸]" 제목은 별도 출력하므로 제거
+        if tile_text.startswith(
+            "[현재 칸]\\n"
+        ):
+            tile_text = (
+                tile_text[len("[현재 칸]\\n"):]
+            )
+
+        self.canvas.create_text(
+            panel_x + 14,
+            top + 50,
+            anchor="nw",
+            text=tile_text,
+            width=max(
+                220,
+                panel_right
+                - panel_x
+                - 28
+            ),
+            fill="#dddddd",
+            font=(
+                "Malgun Gothic",
+                11,
+            ),
+        )
+
+        # ----------------------------------------------------
+        # 최근 기록
+        # ----------------------------------------------------
+
+        log_top = (
+            current_bottom + 15
+        )
+
+        self.canvas.create_rectangle(
+            panel_x,
+            log_top,
+            panel_right,
+            bottom,
+            fill="#181818",
+            outline="#666666",
+            width=2,
+        )
+
+        self.canvas.create_text(
+            panel_x + 14,
+            log_top + 12,
+            anchor="nw",
+            text="[최근 기록]",
+            fill="#d8e6c3",
+            font=(
+                "Malgun Gothic",
+                12,
+                "bold",
+            ),
+        )
+
+        recent = (
+            self.activity_log[-8:]
+        )
+
+        log_text = (
+            "\n".join(
+                reversed(
+                    recent
+                )
+            )
+        )
+
+        self.canvas.create_text(
+            panel_x + 14,
+            log_top + 48,
+            anchor="nw",
+            text=log_text,
+            width=max(
+                220,
+                panel_right
+                - panel_x
+                - 28
+            ),
+            fill="#bbbbbb",
+            font=(
+                "Malgun Gothic",
+                9,
+            ),
+        )
+
+    # ========================================================
+    # 작업 선택 바
+    # ========================================================
+
+    def draw_action_bar(self):
+
+        left = FIELD_MARGIN
+        right = (
+            FIELD_MARGIN
+            + FIELD_PIXEL_SIZE
+        )
+
+        top = 825
+        bottom = 895
+
+        self.canvas.create_rectangle(
+            left,
+            top,
+            right,
+            bottom,
+            fill="#202020",
+            outline="#666666",
+            width=2,
+        )
+
+        section_width = (
+            (right - left)
+            / 4
+        )
+
+        for index, action in enumerate(
+            self.actions
+        ):
+
+            x1 = (
+                left
+                + index * section_width
+            )
+
+            x2 = (
+                x1
+                + section_width
+            )
+
+            selected = (
+                index
+                == self.selected_action
+            )
+
+            if selected:
+                fill = "#4a4a36"
+                outline = "#d8c48c"
+                text_color = "#ffffff"
+
+            else:
+                fill = "#2a2a2a"
+                outline = "#555555"
+                text_color = "#bbbbbb"
+
+            self.canvas.create_rectangle(
+                x1 + 4,
+                top + 7,
+                x2 - 4,
+                bottom - 25,
+                fill=fill,
+                outline=outline,
+                width=2,
+            )
+
+            self.canvas.create_text(
+                (
+                    x1 + x2
+                ) / 2,
+                top + 26,
+                text=(
+                    f"{index + 1} {action}"
+                ),
+                fill=text_color,
+                font=(
+                    "Malgun Gothic",
+                    10,
+                    "bold",
+                ),
+            )
 
         crop_key = CROP_KEYS[
             self.selected_crop_index
@@ -1895,180 +2199,66 @@ class FarmGame:
             ][crop_key]
         )
 
-        info = (
-            "[현재 작업]\n"
-            f"{self.selected_action + 1}. "
-            f"{action}\n"
-            f"선택 씨앗: "
-            f"{crop.name} × {seed_count}\n"
-            f"성장 {crop.grow_days}일 / "
-            f"물 {crop.water_interval}일마다"
-        )
-
         self.canvas.create_text(
-            panel_x,
-            y,
-            anchor="nw",
-            text=info,
-            fill="#dddddd",
-            font=(
-                "Malgun Gothic",
-                11,
+            (
+                left + right
+            ) / 2,
+            bottom - 13,
+            text=(
+                f"선택 씨앗: {crop.name} × {seed_count}    "
+                "Q / E 변경"
             ),
-        )
-
-        y += 92
-
-        # ----------------------------------------------------
-        # 인벤토리
-        # ----------------------------------------------------
-
-        inventory_text = (
-            "[인벤토리]\n"
-            "씨앗                 농산물\n"
-            f"밀   {self.inventory['seeds']['wheat']:>3}"
-            f"          밀   "
-            f"{self.inventory['crops']['wheat']:>3}\n"
-
-            f"당근 {self.inventory['seeds']['carrot']:>3}"
-            f"          당근 "
-            f"{self.inventory['crops']['carrot']:>3}\n"
-
-            f"감자 {self.inventory['seeds']['potato']:>3}"
-            f"          감자 "
-            f"{self.inventory['crops']['potato']:>3}"
-        )
-
-        self.canvas.create_text(
-            panel_x,
-            y,
-            anchor="nw",
-            text=inventory_text,
             fill="#d8e6c3",
             font=(
                 "Malgun Gothic",
-                10,
+                9,
             ),
         )
 
-        y += 92
+    # ========================================================
+    # 하단 메시지 바
+    # ========================================================
 
-        # ----------------------------------------------------
-        # 현재 칸
-        # ----------------------------------------------------
+    def draw_message_bar(self):
 
-        tile = (
-            self.current_tile()
+        left = FIELD_MARGIN
+        right = (
+            self.window_width
+            - 25
         )
 
-        tile_text = (
-            self.get_tile_info(
-                tile
-            )
+        top = 908
+        bottom = (
+            self.window_height
+            - 18
         )
 
-        self.canvas.create_text(
-            panel_x,
-            y,
-            anchor="nw",
-            text=tile_text,
-            fill="#a9d6ff",
-            font=(
-                "Malgun Gothic",
-                10,
-            ),
-        )
-
-        y += 84
-
-        # ----------------------------------------------------
-        # 메시지
-        # ----------------------------------------------------
+        if bottom <= top:
+            return
 
         self.canvas.create_rectangle(
-            panel_x - 8,
-            y - 7,
-            panel_right,
-            y + 77,
+            left,
+            top,
+            right,
+            bottom,
             fill="#252525",
             outline="#666666",
             width=2,
         )
 
         self.canvas.create_text(
-            panel_x + 5,
-            y + 4,
+            left + 14,
+            top + 10,
             anchor="nw",
             text=self.message,
             width=max(
-                240,
-                panel_right
-                - panel_x
-                - 20
+                300,
+                right - left - 28
             ),
             fill="#ffffff",
             font=(
                 "Malgun Gothic",
                 10,
-            ),
-        )
-
-        y += 94
-
-        # ----------------------------------------------------
-        # 행동 비용
-        # ----------------------------------------------------
-
-        cost_info = (
-            "[행동 비용]\n"
-            f"이동      {TIME_MOVE}분 / 체력 {STAMINA_MOVE}\n"
-            f"쟁기질   {TIME_PLOW}분 / 체력 {STAMINA_PLOW}\n"
-            f"파종      {TIME_PLANT}분 / 체력 {STAMINA_PLANT}\n"
-            f"물주기   {TIME_WATER}분 / 체력 {STAMINA_WATER}\n"
-            f"수확      {TIME_HARVEST}분 / 체력 {STAMINA_HARVEST}\n"
-            f"거래      {TIME_SHOP_TRANSACTION}분 / 체력 0"
-        )
-
-        self.canvas.create_text(
-            panel_x,
-            y,
-            anchor="nw",
-            text=cost_info,
-            fill="#d3c9a3",
-            font=(
-                "Malgun Gothic",
-                9,
-            ),
-        )
-
-        y += 116
-
-        # ----------------------------------------------------
-        # 조작법
-        # ----------------------------------------------------
-
-        controls = (
-            "[조작]\n"
-            "WASD / 방향키     이동\n"
-            "1 쟁기질    2 씨 뿌리기\n"
-            "3 물주기    4 수확\n"
-            "Q / E              씨앗 선택\n"
-            "Z / SPACE / ENTER  실행\n"
-            "B                  상점\n"
-            "N                  집에서 잠자기\n"
-            "ESC                종료\n"
-            "※ 한글 입력 상태 대응"
-        )
-
-        self.canvas.create_text(
-            panel_x,
-            y,
-            anchor="nw",
-            text=controls,
-            fill="#bbbbbb",
-            font=(
-                "Malgun Gothic",
-                9,
             ),
         )
 
