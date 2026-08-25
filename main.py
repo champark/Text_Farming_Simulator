@@ -1645,6 +1645,7 @@ class FarmGame:
         self.draw_field()
         self.draw_right_panel()
         self.draw_action_bar()
+        self.draw_work_card()
         self.draw_message_bar()
 
         if self.shop_open:
@@ -2163,7 +2164,7 @@ class FarmGame:
                 x1 + 4,
                 top + 7,
                 x2 - 4,
-                bottom - 25,
+                bottom - 7,
                 fill=fill,
                 outline=outline,
                 width=2,
@@ -2173,7 +2174,9 @@ class FarmGame:
                 (
                     x1 + x2
                 ) / 2,
-                top + 26,
+                (
+                    top + bottom
+                ) / 2,
                 text=(
                     f"{index + 1} {action}"
                 ),
@@ -2185,35 +2188,443 @@ class FarmGame:
                 ),
             )
 
-        crop_key = CROP_KEYS[
-            self.selected_crop_index
-        ]
+    # ========================================================
+    # 현재 작업 카드
+    # ========================================================
 
-        crop = CROPS[
-            crop_key
-        ]
+    def draw_work_card(self):
 
-        seed_count = (
-            self.inventory[
-                "seeds"
-            ][crop_key]
+        left = (
+            FIELD_MARGIN
+            + FIELD_PIXEL_SIZE
+            + 35
+        )
+
+        right = (
+            self.window_width
+            - 25
+        )
+
+        top = 825
+        bottom = 895
+
+        self.canvas.create_rectangle(
+            left,
+            top,
+            right,
+            bottom,
+            fill="#202020",
+            outline="#666666",
+            width=2,
+        )
+
+        action = (
+            self.actions[
+                self.selected_action
+            ]
+        )
+
+        # ----------------------------------------------------
+        # 아이콘 영역
+        # ----------------------------------------------------
+
+        icon_center_x = (
+            left + 48
+        )
+
+        icon_center_y = (
+            top + 35
+        )
+
+        if self.selected_action == 0:
+
+            self.draw_plow_icon(
+                icon_center_x,
+                icon_center_y,
+            )
+
+            title = "쟁기질"
+
+            detail = (
+                f"{TIME_PLOW}분 / "
+                f"체력 {STAMINA_PLOW}"
+            )
+
+        elif self.selected_action == 1:
+
+            crop_key = CROP_KEYS[
+                self.selected_crop_index
+            ]
+
+            crop = CROPS[
+                crop_key
+            ]
+
+            seed_count = (
+                self.inventory[
+                    "seeds"
+                ][crop_key]
+            )
+
+            self.draw_crop_icon(
+                icon_center_x,
+                icon_center_y,
+                crop_key,
+            )
+
+            title = (
+                f"씨 뿌리기 · {crop.name} × {seed_count}"
+            )
+
+            detail = (
+                f"Q / E 씨앗 변경    "
+                f"{TIME_PLANT}분 / "
+                f"체력 {STAMINA_PLANT}"
+            )
+
+        elif self.selected_action == 2:
+
+            self.draw_watering_icon(
+                icon_center_x,
+                icon_center_y,
+            )
+
+            title = "물주기"
+
+            detail = (
+                f"{TIME_WATER}분 / "
+                f"체력 {STAMINA_WATER}"
+            )
+
+        else:
+
+            self.draw_harvest_icon(
+                icon_center_x,
+                icon_center_y,
+            )
+
+            title = "수확"
+
+            detail = (
+                f"{TIME_HARVEST}분 / "
+                f"체력 {STAMINA_HARVEST}"
+            )
+
+        # ----------------------------------------------------
+        # 텍스트 영역
+        # ----------------------------------------------------
+
+        text_x = (
+            left + 92
         )
 
         self.canvas.create_text(
-            (
-                left + right
-            ) / 2,
-            bottom - 13,
-            text=(
-                f"선택 씨앗: {crop.name} × {seed_count}    "
-                "Q / E 변경"
+            text_x,
+            top + 16,
+            anchor="nw",
+            text=title,
+            fill="#ffffff",
+            font=(
+                "Malgun Gothic",
+                12,
+                "bold",
             ),
-            fill="#d8e6c3",
+        )
+
+        self.canvas.create_text(
+            text_x,
+            top + 44,
+            anchor="nw",
+            text=detail,
+            fill="#d3c9a3",
             font=(
                 "Malgun Gothic",
                 9,
             ),
         )
+
+    # ========================================================
+    # 작업 카드 아이콘
+    # ========================================================
+
+    def draw_plow_icon(
+        self,
+        cx,
+        cy
+    ):
+
+        # 손잡이
+        self.canvas.create_line(
+            cx - 15,
+            cy - 18,
+            cx + 8,
+            cy + 10,
+            fill="#c89b6b",
+            width=5,
+        )
+
+        # 쟁기 몸체
+        self.canvas.create_line(
+            cx + 7,
+            cy + 8,
+            cx + 18,
+            cy + 16,
+            fill="#9ca3aa",
+            width=5,
+        )
+
+        # 날
+        self.canvas.create_polygon(
+            cx + 12,
+            cy + 12,
+            cx + 23,
+            cy + 14,
+            cx + 17,
+            cy + 23,
+            cx + 4,
+            cy + 15,
+            fill="#c9ced3",
+            outline="#eeeeee",
+        )
+
+        # 손잡이 끝
+        self.canvas.create_line(
+            cx - 18,
+            cy - 21,
+            cx - 8,
+            cy - 23,
+            fill="#d4ad7d",
+            width=4,
+        )
+
+    def draw_watering_icon(
+        self,
+        cx,
+        cy
+    ):
+
+        # 물뿌리개 몸체
+        self.canvas.create_rectangle(
+            cx - 16,
+            cy - 8,
+            cx + 10,
+            cy + 15,
+            fill="#657f8f",
+            outline="#b8ced8",
+            width=2,
+        )
+
+        # 손잡이
+        self.canvas.create_arc(
+            cx - 10,
+            cy - 21,
+            cx + 12,
+            cy + 2,
+            start=10,
+            extent=160,
+            style="arc",
+            outline="#b8ced8",
+            width=3,
+        )
+
+        # 주둥이
+        self.canvas.create_polygon(
+            cx + 10,
+            cy - 3,
+            cx + 27,
+            cy - 12,
+            cx + 29,
+            cy - 7,
+            cx + 12,
+            cy + 3,
+            fill="#657f8f",
+            outline="#b8ced8",
+        )
+
+        # 물방울
+        for dx, dy in (
+            (27, 2),
+            (22, 8),
+            (30, 10),
+        ):
+            self.canvas.create_oval(
+                cx + dx - 2,
+                cy + dy - 3,
+                cx + dx + 2,
+                cy + dy + 3,
+                fill="#73b7dd",
+                outline="",
+            )
+
+    def draw_harvest_icon(
+        self,
+        cx,
+        cy
+    ):
+
+        # 낫 손잡이
+        self.canvas.create_line(
+            cx - 13,
+            cy + 20,
+            cx + 4,
+            cy - 3,
+            fill="#b68150",
+            width=5,
+        )
+
+        # 낫 날
+        self.canvas.create_arc(
+            cx - 2,
+            cy - 24,
+            cx + 28,
+            cy + 8,
+            start=80,
+            extent=185,
+            style="arc",
+            outline="#d7dde2",
+            width=5,
+        )
+
+        self.canvas.create_line(
+            cx + 4,
+            cy - 3,
+            cx + 11,
+            cy - 10,
+            fill="#d7dde2",
+            width=4,
+        )
+
+    def draw_crop_icon(
+        self,
+        cx,
+        cy,
+        crop_key
+    ):
+
+        if crop_key == "wheat":
+
+            # 줄기
+            self.canvas.create_line(
+                cx,
+                cy + 20,
+                cx,
+                cy - 20,
+                fill="#c9a64a",
+                width=3,
+            )
+
+            # 이삭
+            for offset_y in (
+                -14,
+                -8,
+                -2,
+                4,
+            ):
+                self.canvas.create_oval(
+                    cx - 10,
+                    cy + offset_y - 4,
+                    cx - 1,
+                    cy + offset_y + 3,
+                    fill="#d9b85b",
+                    outline="",
+                )
+
+                self.canvas.create_oval(
+                    cx + 1,
+                    cy + offset_y - 4,
+                    cx + 10,
+                    cy + offset_y + 3,
+                    fill="#d9b85b",
+                    outline="",
+                )
+
+        elif crop_key == "carrot":
+
+            # 잎
+            for dx in (
+                -8,
+                0,
+                8,
+            ):
+                self.canvas.create_line(
+                    cx,
+                    cy - 7,
+                    cx + dx,
+                    cy - 22,
+                    fill="#6fa35f",
+                    width=4,
+                )
+
+            # 뿌리
+            self.canvas.create_polygon(
+                cx - 11,
+                cy - 8,
+                cx + 11,
+                cy - 8,
+                cx + 4,
+                cy + 20,
+                cx,
+                cy + 25,
+                cx - 4,
+                cy + 20,
+                fill="#d97b35",
+                outline="#f0a15c",
+            )
+
+            # 당근 결
+            self.canvas.create_line(
+                cx - 6,
+                cy + 2,
+                cx + 3,
+                cy + 1,
+                fill="#aa5826",
+                width=2,
+            )
+
+            self.canvas.create_line(
+                cx - 3,
+                cy + 10,
+                cx + 5,
+                cy + 9,
+                fill="#aa5826",
+                width=2,
+            )
+
+        else:
+
+            # 감자
+            potato_specs = (
+                (-10, -3, 10, 15),
+                (3, -10, 21, 8),
+                (-20, -12, -3, 5),
+            )
+
+            for x1, y1, x2, y2 in potato_specs:
+
+                self.canvas.create_oval(
+                    cx + x1,
+                    cy + y1,
+                    cx + x2,
+                    cy + y2,
+                    fill="#9a7047",
+                    outline="#c89b6b",
+                    width=2,
+                )
+
+            # 감자 눈
+            for dx, dy in (
+                (-4, 3),
+                (11, -2),
+                (-11, -5),
+            ):
+                self.canvas.create_oval(
+                    cx + dx - 1,
+                    cy + dy - 1,
+                    cx + dx + 1,
+                    cy + dy + 1,
+                    fill="#60452f",
+                    outline="",
+                )
 
     # ========================================================
     # 하단 메시지 바
