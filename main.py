@@ -19,6 +19,12 @@ HOUSE_POS = (
     GRID_SIZE,
 )
 
+# 9x9 밭 아래 오른쪽에 별도 상점 칸을 둔다.
+SHOP_POS = (
+    GRID_SIZE - 1,
+    GRID_SIZE,
+)
+
 FIELD_MARGIN = 25
 PANEL_WIDTH = 500
 
@@ -368,6 +374,11 @@ class FarmGame:
 
         self.add_log(
             "농장에 도착"
+        )
+
+        self.message = (
+            "농장에 도착했다.\n"
+            "집은 H, 상점은 밭 아래 오른쪽 S에 있다."
         )
 
         # ====================================================
@@ -803,7 +814,19 @@ class FarmGame:
 
         elif char == "b":
 
-            self.open_shop()
+            if (
+                (self.player_x, self.player_y)
+                == SHOP_POS
+            ):
+
+                self.open_shop()
+
+            else:
+
+                self.message = (
+                    "상점은 직접 찾아가야 한다.\n"
+                    "밭 아래 오른쪽의 S 표시로 가자."
+                )
 
         # ====================================================
         # 종료
@@ -848,9 +871,15 @@ class FarmGame:
             == HOUSE_POS
         )
 
+        at_shop = (
+            (new_x, new_y)
+            == SHOP_POS
+        )
+
         if not (
             inside_field
             or at_house
+            or at_shop
         ):
 
             self.message = (
@@ -916,6 +945,9 @@ class FarmGame:
         if (
             (self.player_x, self.player_y)
             == HOUSE_POS
+            or
+            (self.player_x, self.player_y)
+            == SHOP_POS
         ):
 
             return None
@@ -938,6 +970,15 @@ class FarmGame:
         ):
 
             self.sleep()
+
+            return
+
+        if (
+            (self.player_x, self.player_y)
+            == SHOP_POS
+        ):
+
+            self.open_shop()
 
             return
 
@@ -1382,6 +1423,18 @@ class FarmGame:
 
     def open_shop(self):
 
+        if (
+            (self.player_x, self.player_y)
+            != SHOP_POS
+        ):
+
+            self.message = (
+                "상점은 직접 찾아가야 한다.\n"
+                "밭 아래 오른쪽의 S 표시로 가자."
+            )
+
+            return
+
         self.shop_open = True
         self.shop_mode = "buy"
         self.shop_selected_index = 0
@@ -1800,6 +1853,67 @@ class FarmGame:
             py + CELL_SIZE - 10,
             text="집",
             fill="#f1d58a",
+            font=(
+                "Malgun Gothic",
+                9,
+                "bold",
+            ),
+        )
+
+        # ----------------------------------------------------
+        # 상점
+        # 9x9 밭 아래 오른쪽에 별도 한 칸으로 표시한다.
+        # ----------------------------------------------------
+
+        shop_x, shop_y = SHOP_POS
+
+        shop_px = (
+            offset_x
+            + shop_x * CELL_SIZE
+        )
+
+        shop_py = (
+            offset_y
+            + shop_y * CELL_SIZE
+        )
+
+        self.canvas.create_rectangle(
+            shop_px,
+            shop_py,
+            shop_px + CELL_SIZE,
+            shop_py + CELL_SIZE,
+            fill="#3a4550",
+            outline="#8a8a8a",
+            width=3,
+        )
+
+        shop_symbol = "S"
+
+        if (
+            self.player_x == shop_x
+            and
+            self.player_y == shop_y
+        ):
+
+            shop_symbol = "P"
+
+        self.canvas.create_text(
+            shop_px + CELL_SIZE // 2,
+            shop_py + CELL_SIZE // 2 - 7,
+            text=shop_symbol,
+            fill="#ffffff",
+            font=(
+                "Consolas",
+                30,
+                "bold",
+            ),
+        )
+
+        self.canvas.create_text(
+            shop_px + CELL_SIZE // 2,
+            shop_py + CELL_SIZE - 10,
+            text="상점",
+            fill="#b9d8f0",
             font=(
                 "Malgun Gothic",
                 9,
@@ -2945,10 +3059,25 @@ class FarmGame:
 
         if tile is None:
 
-            result += (
-                "장소: 집\n"
-                "N / Z / SPACE / ENTER : 잠자기"
-            )
+            if (
+                (self.player_x, self.player_y)
+                == HOUSE_POS
+            ):
+
+                result += (
+                    "장소: 집\n"
+                    "N / Z / SPACE / ENTER : 잠자기"
+                )
+
+            elif (
+                (self.player_x, self.player_y)
+                == SHOP_POS
+            ):
+
+                result += (
+                    "장소: 상점\n"
+                    "B / Z / SPACE / ENTER : 거래"
+                )
 
             return result
 
