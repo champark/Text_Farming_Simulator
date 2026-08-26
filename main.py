@@ -107,40 +107,39 @@ def normalize_char(char):
 class CropData:
     name: str
     symbol: str
-
     grow_days: int
-    water_interval: int
-
     seed_price: int
     sell_price: int
+    min_moisture: int
+    min_nutrients: int
+    moisture_use: int
+    nutrient_use: int
 
 
 CROPS = {
     "wheat": CropData(
-        name="밀",
-        symbol="w",
-        grow_days=4,
-        water_interval=1,
-        seed_price=10,
-        sell_price=18,
+        name="밀", symbol="w", grow_days=6,
+        seed_price=18, sell_price=32,
+        min_moisture=30, min_nutrients=30,
+        moisture_use=7, nutrient_use=3,
     ),
-
-    "carrot": CropData(
-        name="당근",
-        symbol="c",
-        grow_days=5,
-        water_interval=2,
-        seed_price=20,
-        sell_price=40,
+    "barley": CropData(
+        name="보리", symbol="b", grow_days=4,
+        seed_price=10, sell_price=18,
+        min_moisture=25, min_nutrients=20,
+        moisture_use=6, nutrient_use=2,
     ),
-
-    "potato": CropData(
-        name="감자",
-        symbol="o",
-        grow_days=6,
-        water_interval=3,
-        seed_price=30,
-        sell_price=65,
+    "rye": CropData(
+        name="호밀", symbol="r", grow_days=6,
+        seed_price=12, sell_price=24,
+        min_moisture=20, min_nutrients=15,
+        moisture_use=5, nutrient_use=1,
+    ),
+    "oats": CropData(
+        name="귀리", symbol="o", grow_days=5,
+        seed_price=8, sell_price=14,
+        min_moisture=35, min_nutrients=20,
+        moisture_use=7, nutrient_use=2,
     ),
 }
 
@@ -172,91 +171,44 @@ SCENARIOS = [
 class Tile:
 
     def __init__(self):
-
         self.plowed = False
-
         self.crop_type: Optional[str] = None
-
         self.planted_day = 0
         self.age = 0
+
+        self.moisture = 50
+        self.nutrients = 50
 
         self.last_watered_day: Optional[int] = None
 
     def has_crop(self):
-
         return self.crop_type is not None
 
     def crop_data(self):
-
         if self.crop_type is None:
             return None
-
         return CROPS[self.crop_type]
 
     def is_mature(self):
-
         if not self.has_crop():
             return False
-
         crop = self.crop_data()
+        return self.age >= crop.grow_days
 
-        return (
-            self.age
-            >= crop.grow_days
-        )
+    def watered_today(self, current_day):
+        return self.last_watered_day == current_day
 
-    def needs_water(
-        self,
-        current_day
-    ):
-
+    def can_grow_today(self):
         if not self.has_crop():
             return False
-
         if self.is_mature():
             return False
 
         crop = self.crop_data()
 
-        if self.last_watered_day is None:
-            return True
-
         return (
-            current_day
-            - self.last_watered_day
-            >= crop.water_interval
-        )
-
-    def watered_today(
-        self,
-        current_day
-    ):
-
-        return (
-            self.last_watered_day
-            == current_day
-        )
-
-    def can_grow_today(
-        self,
-        current_day
-    ):
-
-        if not self.has_crop():
-            return False
-
-        if self.is_mature():
-            return False
-
-        if self.last_watered_day is None:
-            return False
-
-        crop = self.crop_data()
-
-        return (
-            current_day
-            - self.last_watered_day
-            < crop.water_interval
+            self.moisture >= crop.min_moisture
+            and self.nutrients >= crop.min_nutrients
         )
 
 
@@ -424,14 +376,16 @@ class FarmGame:
 
             "seeds": {
                 "wheat": 5,
-                "carrot": 5,
-                "potato": 5,
+                "barley": 5,
+                "rye": 5,
+                "oats": 5,
             },
 
             "crops": {
                 "wheat": 0,
-                "carrot": 0,
-                "potato": 0,
+                "barley": 0,
+                "rye": 0,
+                "oats": 0,
             },
         }
 
@@ -1269,89 +1223,46 @@ class FarmGame:
 
     def water(self):
 
-        tile = (
-            self.current_tile()
-        )
+        tile = self.current_tile()
 
-        if not tile.has_crop():
-
-            self.message = (
-                "여기에는 작물이 없다."
-            )
-
+        if tile is None:
+            self.message = "여기에는 물을 줄 밭이 없다."
             return
 
-        crop = (
-            tile.crop_data()
-        )
-
-        if tile.is_mature():
-
-            self.message = (
-                f"{crop.name}은 "
-                "이미 다 자랐다."
-            )
-
+        if not tile.plowed:
+            self.message = "먼저 땅을 쟁기질해야 한다."
             return
 
-        if tile.watered_today(
-            self.day
-        ):
-
-            self.message = (
-                "오늘은 이미 물을 주었다."
-            )
-
-            return
-
-        if not tile.needs_water(
-            self.day
-        ):
-
-            remaining = (
-                crop.water_interval
-                - (
-                    self.day
-                    - tile.last_watered_day
-                )
-            )
-
-            self.message = (
-                f"{crop.name}은 아직 "
-                "물이 충분하다.\n"
-                f"{remaining}일 후 물 필요"
-            )
-
+        if tile.watered_today(self.day):
+            self.message = "오늘은 이미 이 밭에 물을 주었다."
             return
 
         if not self.can_perform_action(
             TIME_WATER,
             STAMINA_WATER
         ):
-
             return
 
-        tile.last_watered_day = (
-            self.day
+        before = tile.moisture
+        tile.moisture = min(
+            100,
+            tile.moisture + 30
         )
+        tile.last_watered_day = self.day
 
-        self.spend_time(
-            TIME_WATER
-        )
-
-        self.spend_stamina(
-            STAMINA_WATER
-        )
+        self.spend_time(TIME_WATER)
+        self.spend_stamina(STAMINA_WATER)
 
         self.message = (
-            f"{crop.name}에 물을 주었다.\n"
-            f"시간 -{TIME_WATER}분 / "
-            f"체력 -{STAMINA_WATER}"
+            "밭에 물을 주었다.\n"
+            f"수분 {before} → {tile.moisture}\n"
+            f"시간 -{TIME_WATER}분 / 체력 -{STAMINA_WATER}"
         )
 
         self.add_log(
-            f"{crop.name}에 물을 줌"
+            f"물주기: 수분 {before}→{tile.moisture}"
         )
+
 
     # ========================================================
     # 수확
@@ -1448,86 +1359,95 @@ class FarmGame:
             (self.player_x, self.player_y)
             != HOUSE_POS
         ):
-
             self.message = (
                 "잠은 집에서만 잘 수 있다.\n"
                 "밭 아래쪽의 H 표시로 돌아가자."
             )
-
             return
 
         grown_count = 0
-
-        # ----------------------------------------------------
-        # 오늘 성장 처리
-        # ----------------------------------------------------
+        stalled_count = 0
 
         for row in self.field:
-
             for tile in row:
 
-                if tile.can_grow_today(
-                    self.day
-                ):
+                if tile.has_crop():
 
-                    tile.age += 1
+                    crop = tile.crop_data()
 
-                    grown_count += 1
+                    if tile.is_mature():
+                        continue
 
-                    crop = (
-                        tile.crop_data()
+                    if tile.can_grow_today():
+
+                        tile.age += 1
+                        tile.moisture = max(
+                            0,
+                            tile.moisture - crop.moisture_use
+                        )
+                        tile.nutrients = max(
+                            0,
+                            tile.nutrients - crop.nutrient_use
+                        )
+                        grown_count += 1
+
+                        if tile.age > crop.grow_days:
+                            tile.age = crop.grow_days
+
+                    else:
+                        stalled_count += 1
+
+                else:
+                    # 빈 밭은 기준 상태 50까지만 천천히 자연 회복
+                    tile.moisture = min(
+                        50,
+                        tile.moisture + 4
+                    )
+                    tile.nutrients = min(
+                        50,
+                        tile.nutrients + 1
                     )
 
-                    if (
-                        tile.age
-                        > crop.grow_days
-                    ):
-
-                        tile.age = (
-                            crop.grow_days
-                        )
-
-        # ----------------------------------------------------
-        # 다음 날
-        # ----------------------------------------------------
-
         self.day += 1
+        self.current_time = DAY_START_MINUTE
+        self.stamina = self.max_stamina
 
-        self.current_time = (
-            DAY_START_MINUTE
-        )
-
-        # 체력 완전 회복
-        self.stamina = (
-            self.max_stamina
-        )
-
-        self.add_log(
-            f"{self.day}일째 아침"
-        )
-
-        self.add_log(
-            "체력 완전 회복"
-        )
+        self.add_log(f"{self.day}일째 아침")
+        self.add_log("체력 완전 회복")
 
         if grown_count > 0:
-
             self.add_log(
                 f"작물 {grown_count}칸 성장"
             )
 
-            self.message = (
-                f"{self.day}일째 아침이다.\n"
-                f"작물 {grown_count}칸이 성장했다.\n"
-                "체력이 완전히 회복되었다."
+        if stalled_count > 0:
+            self.add_log(
+                f"토양 부족으로 {stalled_count}칸 성장 정지"
             )
 
-        else:
+        message_lines = [
+            f"{self.day}일째 아침이다."
+        ]
 
-            self.message = (
-                f"{self.day}일째 아침이다.\n"
-                "체력이 완전히 회복되었다."
+        if grown_count > 0:
+            message_lines.append(
+                f"작물 {grown_count}칸이 성장했다."
             )
+
+        if stalled_count > 0:
+            message_lines.append(
+                f"수분/양분 부족으로 "
+                f"{stalled_count}칸의 성장이 멈췄다."
+            )
+
+        message_lines.append(
+            "체력이 완전히 회복되었다."
+        )
+
+        self.message = "\n".join(
+            message_lines
+        )
+
 
     # ========================================================
     # 상점
@@ -2458,13 +2378,15 @@ class FarmGame:
         self.inventory = {
             "seeds": {
                 "wheat": 5,
-                "carrot": 5,
-                "potato": 5,
+                "barley": 5,
+                "rye": 5,
+                "oats": 5,
             },
             "crops": {
                 "wheat": 0,
-                "carrot": 0,
-                "potato": 0,
+                "barley": 0,
+                "rye": 0,
+                "oats": 0,
             },
         }
 
@@ -3026,9 +2948,9 @@ class FarmGame:
             )
 
             self.draw_crop_icon(
+                crop_key,
                 icon_center_x,
                 icon_center_y,
-                crop_key,
             )
 
             title = (
@@ -3255,139 +3177,107 @@ class FarmGame:
 
     def draw_crop_icon(
         self,
+        crop_key,
         cx,
         cy,
-        crop_key
     ):
 
-        if crop_key == "wheat":
+        colors = {
+            "wheat": ("#d9b85b", "#c9a64a"),
+            "barley": ("#d5bd72", "#bda45e"),
+            "rye": ("#b6b071", "#8f8b58"),
+            "oats": ("#d8c891", "#aaa06f"),
+        }
 
-            # 줄기
-            self.canvas.create_line(
-                cx,
-                cy + 20,
-                cx,
-                cy - 20,
-                fill="#c9a64a",
-                width=3,
-            )
+        grain_color, stem_color = colors.get(
+            crop_key,
+            ("#d9b85b", "#c9a64a")
+        )
 
-            # 이삭
-            for offset_y in (
-                -14,
-                -8,
-                -2,
-                4,
+        self.canvas.create_line(
+            cx,
+            cy + 23,
+            cx,
+            cy - 19,
+            fill=stem_color,
+            width=3,
+        )
+
+        if crop_key == "oats":
+
+            for dx, dy in (
+                (-16, -9),
+                (14, -13),
+                (-12, -1),
+                (17, -3),
+                (-8, 7),
+                (11, 5),
             ):
-                self.canvas.create_oval(
-                    cx - 10,
-                    cy + offset_y - 4,
-                    cx - 1,
-                    cy + offset_y + 3,
-                    fill="#d9b85b",
-                    outline="",
-                )
 
-                self.canvas.create_oval(
-                    cx + 1,
-                    cy + offset_y - 4,
-                    cx + 10,
-                    cy + offset_y + 3,
-                    fill="#d9b85b",
-                    outline="",
-                )
-
-        elif crop_key == "carrot":
-
-            # 잎
-            for dx in (
-                -8,
-                0,
-                8,
-            ):
                 self.canvas.create_line(
                     cx,
                     cy - 7,
                     cx + dx,
-                    cy - 22,
-                    fill="#6fa35f",
-                    width=4,
-                )
-
-            # 뿌리
-            self.canvas.create_polygon(
-                cx - 11,
-                cy - 8,
-                cx + 11,
-                cy - 8,
-                cx + 4,
-                cy + 20,
-                cx,
-                cy + 25,
-                cx - 4,
-                cy + 20,
-                fill="#d97b35",
-                outline="#f0a15c",
-            )
-
-            # 당근 결
-            self.canvas.create_line(
-                cx - 6,
-                cy + 2,
-                cx + 3,
-                cy + 1,
-                fill="#aa5826",
-                width=2,
-            )
-
-            self.canvas.create_line(
-                cx - 3,
-                cy + 10,
-                cx + 5,
-                cy + 9,
-                fill="#aa5826",
-                width=2,
-            )
-
-        else:
-
-            # 감자
-            potato_specs = (
-                (-10, -3, 10, 15),
-                (3, -10, 21, 8),
-                (-20, -12, -3, 5),
-            )
-
-            for x1, y1, x2, y2 in potato_specs:
-
-                self.canvas.create_oval(
-                    cx + x1,
-                    cy + y1,
-                    cx + x2,
-                    cy + y2,
-                    fill="#9a7047",
-                    outline="#c89b6b",
+                    cy + dy,
+                    fill=stem_color,
                     width=2,
                 )
 
-            # 감자 눈
-            for dx, dy in (
-                (-4, 3),
-                (11, -2),
-                (-11, -5),
-            ):
                 self.canvas.create_oval(
-                    cx + dx - 1,
-                    cy + dy - 1,
-                    cx + dx + 1,
-                    cy + dy + 1,
-                    fill="#60452f",
+                    cx + dx - 3,
+                    cy + dy - 4,
+                    cx + dx + 3,
+                    cy + dy + 4,
+                    fill=grain_color,
                     outline="",
                 )
 
-    # ========================================================
-    # 하단 메시지 바
-    # ========================================================
+            return
+
+        for offset_y in (-14, -8, -2, 4):
+
+            width = 7 if crop_key == "rye" else 9
+
+            self.canvas.create_oval(
+                cx - width - 1,
+                cy + offset_y - 4,
+                cx - 1,
+                cy + offset_y + 3,
+                fill=grain_color,
+                outline="",
+            )
+
+            self.canvas.create_oval(
+                cx + 1,
+                cy + offset_y - 4,
+                cx + width + 1,
+                cy + offset_y + 3,
+                fill=grain_color,
+                outline="",
+            )
+
+        if crop_key == "barley":
+
+            for dy in (-15, -9, -3, 3):
+
+                self.canvas.create_line(
+                    cx - 6,
+                    cy + dy,
+                    cx - 16,
+                    cy + dy - 9,
+                    fill=stem_color,
+                    width=1,
+                )
+
+                self.canvas.create_line(
+                    cx + 6,
+                    cy + dy,
+                    cx + 16,
+                    cy + dy - 9,
+                    fill=stem_color,
+                    width=1,
+                )
+
 
     def draw_message_bar(self):
 
@@ -3698,9 +3588,7 @@ class FarmGame:
         tile
     ):
 
-        result = (
-            "[현재 칸]\n"
-        )
+        result = "[현재 칸]\n"
 
         if tile is None:
 
@@ -3708,7 +3596,6 @@ class FarmGame:
                 (self.player_x, self.player_y)
                 == HOUSE_POS
             ):
-
                 result += (
                     "장소: 집\n"
                     "N / Z / SPACE / ENTER : 잠자기"
@@ -3718,7 +3605,6 @@ class FarmGame:
                 (self.player_x, self.player_y)
                 == SHOP_POS
             ):
-
                 result += (
                     "장소: 상점\n"
                     "B / Z / SPACE / ENTER : 거래"
@@ -3726,70 +3612,50 @@ class FarmGame:
 
             return result
 
+        result += (
+            f"수분: {tile.moisture}/100\n"
+            f"양분: {tile.nutrients}/100\n"
+        )
+
         if not tile.plowed:
-
-            result += (
-                "상태: 평범한 땅"
-            )
-
+            result += "상태: 평범한 땅"
             return result
 
         if not tile.has_crop():
-
-            result += (
-                "상태: 갈아놓은 땅"
-            )
-
+            result += "상태: 갈아놓은 땅"
             return result
 
-        crop = (
-            tile.crop_data()
-        )
+        crop = tile.crop_data()
 
         result += (
             f"작물: {crop.name}\n"
-            f"성장: "
-            f"{tile.age}/{crop.grow_days}\n"
+            f"성장: {tile.age}/{crop.grow_days}\n"
+            f"최소 요구: 수분 {crop.min_moisture} / "
+            f"양분 {crop.min_nutrients}\n"
         )
 
         if tile.is_mature():
-
-            result += (
-                "상태: 수확 가능"
-            )
-
+            result += "상태: 수확 가능"
             return result
 
-        if tile.watered_today(
-            self.day
-        ):
-
-            result += (
-                "수분: 오늘 물 줌"
-            )
-
-        elif tile.needs_water(
-            self.day
-        ):
-
-            result += (
-                "수분: 물 필요!"
-            )
-
+        if tile.can_grow_today():
+            result += "상태: 성장 가능"
         else:
+            shortages = []
 
-            remaining = (
-                crop.water_interval
-                - (
-                    self.day
-                    - tile.last_watered_day
-                )
-            )
+            if tile.moisture < crop.min_moisture:
+                shortages.append("수분")
+
+            if tile.nutrients < crop.min_nutrients:
+                shortages.append("양분")
 
             result += (
-                f"수분: 충분 "
-                f"({remaining}일)"
+                "상태: 성장 정지 "
+                f"({', '.join(shortages)} 부족)"
             )
+
+        if tile.watered_today(self.day):
+            result += "\n오늘 물 줌"
 
         return result
 
