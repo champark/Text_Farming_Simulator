@@ -148,6 +148,24 @@ CROP_KEYS = list(CROPS.keys())
 
 
 # ============================================================
+# 시나리오 데이터
+# ============================================================
+
+SCENARIOS = [
+    {
+        "id": "first_winter",
+        "title": "첫 번째 겨울",
+        "subtitle": "다가오는 겨울을 준비하라",
+        "description": (
+            "30일 동안 농사를 지어 겨울을 준비한다.\n"
+            "겨울이 오기 전에 충분한 식량을 비축해야 한다."
+        ),
+        "goal": "목표: 30일 안에 식량 100 비축",
+    },
+]
+
+
+# ============================================================
 # 밭 한 칸
 # ============================================================
 
@@ -320,6 +338,17 @@ class FarmGame:
         )
 
         # ====================================================
+        # 화면 상태
+        # ====================================================
+
+        self.screen_mode = "main"
+        self.current_scenario_id = None
+        self.scenario_selected_index = 0
+
+        # 마우스 클릭 판정용 영역
+        self.click_regions = {}
+
+        # ====================================================
         # 날짜 / 시간
         # ====================================================
 
@@ -463,6 +492,11 @@ class FarmGame:
         self.root.bind(
             "<Configure>",
             self.on_resize
+        )
+
+        self.root.bind(
+            "<Button-1>",
+            self.on_click
         )
 
         self.canvas.focus_set()
@@ -664,6 +698,84 @@ class FarmGame:
         key = (
             event.keysym.lower()
         )
+
+        # ====================================================
+        # 메인 화면
+        # ====================================================
+
+        if self.screen_mode == "main":
+
+            if (
+                key == "return"
+                or key == "space"
+                or char == "z"
+            ):
+
+                self.screen_mode = (
+                    "scenario_select"
+                )
+
+                self.draw()
+
+                return
+
+            if key == "escape":
+
+                self.root.destroy()
+
+                return
+
+            return
+
+        # ====================================================
+        # 시나리오 선택
+        # ====================================================
+
+        if self.screen_mode == "scenario_select":
+
+            if (
+                key == "up"
+                or char == "w"
+            ):
+
+                self.scenario_selected_index -= 1
+                self.scenario_selected_index %= len(
+                    SCENARIOS
+                )
+
+            elif (
+                key == "down"
+                or char == "s"
+            ):
+
+                self.scenario_selected_index += 1
+                self.scenario_selected_index %= len(
+                    SCENARIOS
+                )
+
+            elif (
+                key == "return"
+                or key == "space"
+                or char == "z"
+            ):
+
+                scenario = SCENARIOS[
+                    self.scenario_selected_index
+                ]
+
+                self.start_scenario(
+                    scenario["id"]
+                )
+
+                return
+
+            elif key == "escape":
+
+                self.screen_mode = "main"
+
+            self.draw()
+
+            return
 
         # ====================================================
         # 상점
@@ -1694,6 +1806,20 @@ class FarmGame:
             "all"
         )
 
+        self.click_regions = {}
+
+        if self.screen_mode == "main":
+
+            self.draw_main_menu()
+
+            return
+
+        if self.screen_mode == "scenario_select":
+
+            self.draw_scenario_select()
+
+            return
+
         self.draw_top_hud()
         self.draw_field()
         self.draw_right_panel()
@@ -1947,6 +2073,525 @@ class FarmGame:
             player_py + CELL_SIZE - inset,
             outline="#f1d58a",
             width=4,
+        )
+
+    # ========================================================
+    # 메인 화면
+    # ========================================================
+
+    def draw_main_menu(self):
+
+        center_x = (
+            self.window_width // 2
+        )
+
+        self.canvas.create_text(
+            center_x,
+            190,
+            text=GAME_TITLE,
+            fill="#ffffff",
+            font=(
+                "Malgun Gothic",
+                34,
+                "bold",
+            ),
+        )
+
+        self.canvas.create_text(
+            center_x,
+            245,
+            text="농사 생존 시뮬레이션",
+            fill="#c9b77d",
+            font=(
+                "Malgun Gothic",
+                14,
+            ),
+        )
+
+        button_left = (
+            center_x - 180
+        )
+
+        button_right = (
+            center_x + 180
+        )
+
+        button_top = 390
+        button_bottom = 460
+
+        self.canvas.create_rectangle(
+            button_left,
+            button_top,
+            button_right,
+            button_bottom,
+            fill="#313129",
+            outline="#d8c48c",
+            width=3,
+        )
+
+        self.canvas.create_text(
+            center_x,
+            (
+                button_top
+                + button_bottom
+            ) // 2,
+            text="게임 시작",
+            fill="#ffffff",
+            font=(
+                "Malgun Gothic",
+                18,
+                "bold",
+            ),
+        )
+
+        self.click_regions[
+            "main_start"
+        ] = (
+            button_left,
+            button_top,
+            button_right,
+            button_bottom,
+        )
+
+        self.canvas.create_text(
+            center_x,
+            515,
+            text="ENTER / SPACE / Z",
+            fill="#888888",
+            font=(
+                "Consolas",
+                11,
+            ),
+        )
+
+        self.canvas.create_text(
+            center_x,
+            self.window_height - 75,
+            text="ESC  종료",
+            fill="#777777",
+            font=(
+                "Malgun Gothic",
+                10,
+            ),
+        )
+
+    # ========================================================
+    # 시나리오 선택 화면
+    # ========================================================
+
+    def draw_scenario_select(self):
+
+        center_x = (
+            self.window_width // 2
+        )
+
+        self.canvas.create_text(
+            center_x,
+            85,
+            text="시나리오 선택",
+            fill="#ffffff",
+            font=(
+                "Malgun Gothic",
+                27,
+                "bold",
+            ),
+        )
+
+        self.canvas.create_text(
+            center_x,
+            125,
+            text=(
+                "각 시나리오는 서로 다른 환경과 "
+                "생존 목표를 가진다."
+            ),
+            fill="#aaaaaa",
+            font=(
+                "Malgun Gothic",
+                11,
+            ),
+        )
+
+        card_width = min(
+            760,
+            self.window_width - 140
+        )
+
+        card_left = (
+            center_x
+            - card_width // 2
+        )
+
+        card_right = (
+            center_x
+            + card_width // 2
+        )
+
+        card_top = 220
+        card_bottom = 550
+
+        scenario = SCENARIOS[
+            self.scenario_selected_index
+        ]
+
+        self.canvas.create_rectangle(
+            card_left,
+            card_top,
+            card_right,
+            card_bottom,
+            fill="#222222",
+            outline="#d8c48c",
+            width=3,
+        )
+
+        # 왼쪽의 간단한 겨울 풍경 표식
+        icon_x = (
+            card_left + 120
+        )
+
+        icon_y = (
+            card_top + 130
+        )
+
+        self.canvas.create_oval(
+            icon_x - 48,
+            icon_y - 48,
+            icon_x + 48,
+            icon_y + 48,
+            fill="#26313a",
+            outline="#8fa7ba",
+            width=3,
+        )
+
+        self.canvas.create_text(
+            icon_x,
+            icon_y - 3,
+            text="❄",
+            fill="#dcecf7",
+            font=(
+                "Malgun Gothic",
+                46,
+                "bold",
+            ),
+        )
+
+        text_x = (
+            card_left + 235
+        )
+
+        self.canvas.create_text(
+            text_x,
+            card_top + 55,
+            anchor="nw",
+            text=scenario["title"],
+            fill="#ffffff",
+            font=(
+                "Malgun Gothic",
+                23,
+                "bold",
+            ),
+        )
+
+        self.canvas.create_text(
+            text_x,
+            card_top + 100,
+            anchor="nw",
+            text=scenario["subtitle"],
+            fill="#d8c48c",
+            font=(
+                "Malgun Gothic",
+                13,
+                "bold",
+            ),
+        )
+
+        self.canvas.create_text(
+            text_x,
+            card_top + 145,
+            anchor="nw",
+            text=scenario["description"],
+            width=max(
+                300,
+                card_right
+                - text_x
+                - 35
+            ),
+            fill="#cccccc",
+            font=(
+                "Malgun Gothic",
+                11,
+            ),
+        )
+
+        self.canvas.create_text(
+            text_x,
+            card_top + 235,
+            anchor="nw",
+            text=scenario["goal"],
+            fill="#a9d6ff",
+            font=(
+                "Malgun Gothic",
+                11,
+                "bold",
+            ),
+        )
+
+        self.click_regions[
+            "scenario_first_winter"
+        ] = (
+            card_left,
+            card_top,
+            card_right,
+            card_bottom,
+        )
+
+        start_left = (
+            center_x - 150
+        )
+
+        start_right = (
+            center_x + 150
+        )
+
+        start_top = 620
+        start_bottom = 680
+
+        self.canvas.create_rectangle(
+            start_left,
+            start_top,
+            start_right,
+            start_bottom,
+            fill="#313129",
+            outline="#d8c48c",
+            width=3,
+        )
+
+        self.canvas.create_text(
+            center_x,
+            (
+                start_top
+                + start_bottom
+            ) // 2,
+            text="시나리오 시작",
+            fill="#ffffff",
+            font=(
+                "Malgun Gothic",
+                15,
+                "bold",
+            ),
+        )
+
+        self.click_regions[
+            "scenario_start"
+        ] = (
+            start_left,
+            start_top,
+            start_right,
+            start_bottom,
+        )
+
+        self.canvas.create_text(
+            center_x,
+            730,
+            text=(
+                "ENTER / SPACE / Z : 시작    "
+                "ESC : 메인 화면"
+            ),
+            fill="#888888",
+            font=(
+                "Malgun Gothic",
+                10,
+            ),
+        )
+
+        self.canvas.create_text(
+            center_x,
+            self.window_height - 75,
+            text="현재 선택 가능한 시나리오: 1개",
+            fill="#666666",
+            font=(
+                "Malgun Gothic",
+                9,
+            ),
+        )
+
+    # ========================================================
+    # 시나리오 시작
+    # ========================================================
+
+    def start_scenario(
+        self,
+        scenario_id
+    ):
+
+        self.current_scenario_id = (
+            scenario_id
+        )
+
+        self.screen_mode = "game"
+
+        # 현재는 첫 번째 겨울 하나만 존재한다.
+        # 새 시나리오를 추가할 때 여기에서
+        # 시나리오별 초기 조건을 분기할 수 있다.
+
+        self.day = 1
+        self.current_time = (
+            DAY_START_MINUTE
+        )
+
+        self.stamina = (
+            self.max_stamina
+        )
+
+        self.player_x = (
+            GRID_SIZE // 2
+        )
+
+        self.player_y = (
+            GRID_SIZE // 2
+        )
+
+        self.selected_action = 0
+        self.selected_crop_index = 0
+
+        self.money = 500
+
+        self.inventory = {
+            "seeds": {
+                "wheat": 5,
+                "carrot": 5,
+                "potato": 5,
+            },
+            "crops": {
+                "wheat": 0,
+                "carrot": 0,
+                "potato": 0,
+            },
+        }
+
+        self.shop_open = False
+        self.shop_mode = "buy"
+        self.shop_selected_index = 0
+
+        self.field = [
+            [
+                Tile()
+                for _ in range(
+                    GRID_SIZE
+                )
+            ]
+            for _ in range(
+                GRID_SIZE
+            )
+        ]
+
+        self.activity_log = []
+
+        self.add_log(
+            "첫 번째 겨울 시작"
+        )
+
+        self.message = (
+            "《첫 번째 겨울》이 시작되었다.\\n"
+            "다가오는 겨울에 대비해 농사를 준비하자.\\n"
+            "집은 H, 상점은 밭 아래 오른쪽 S에 있다."
+        )
+
+        self.draw()
+
+    # ========================================================
+    # 마우스 입력
+    # ========================================================
+
+    def on_click(
+        self,
+        event
+    ):
+
+        x = event.x
+        y = event.y
+
+        if self.screen_mode == "main":
+
+            region = self.click_regions.get(
+                "main_start"
+            )
+
+            if (
+                region is not None
+                and
+                self.point_in_region(
+                    x,
+                    y,
+                    region
+                )
+            ):
+
+                self.screen_mode = (
+                    "scenario_select"
+                )
+
+                self.draw()
+
+            return
+
+        if self.screen_mode == "scenario_select":
+
+            card = self.click_regions.get(
+                "scenario_first_winter"
+            )
+
+            start = self.click_regions.get(
+                "scenario_start"
+            )
+
+            if (
+                card is not None
+                and
+                self.point_in_region(
+                    x,
+                    y,
+                    card
+                )
+            ):
+
+                self.scenario_selected_index = 0
+                self.draw()
+
+                return
+
+            if (
+                start is not None
+                and
+                self.point_in_region(
+                    x,
+                    y,
+                    start
+                )
+            ):
+
+                scenario = SCENARIOS[
+                    self.scenario_selected_index
+                ]
+
+                self.start_scenario(
+                    scenario["id"]
+                )
+
+    @staticmethod
+    def point_in_region(
+        x,
+        y,
+        region
+    ):
+
+        left, top, right, bottom = (
+            region
+        )
+
+        return (
+            left <= x <= right
+            and
+            top <= y <= bottom
         )
 
     # ========================================================
